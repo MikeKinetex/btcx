@@ -1,0 +1,19 @@
+[package]
+name = "btcx"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "circuits/lib.rs"
+
+[dependencies]
+plonky2 = { git = "https://github.com/mir-protocol/plonky2.git", default-features = false}
+plonky2x = { git = "https://github.com/succinctlabs/succinctx.git" }
+num-bigint = "0.4.4"
+ethers = "2.0.11"
+serde = "1.0.193"
+hex = "0.4.3"
+log = "0.4.20"
+
+[dev-dependencies]
+env_logger = "0.10.1"

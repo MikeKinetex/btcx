@@ -1,0 +1,8 @@
+debug/
+target/
+test-data/
+build/
+.env
+.idea
+.vscode
+.DS_STORE
