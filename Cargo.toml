@@ -6,6 +6,10 @@ edition = "2021"
 [lib]
 path = "circuits/lib.rs"
 
+[[bin]]
+name = "verify"
+path = "bin/verify.rs"
+
 [dependencies]
 plonky2 = { git = "https://github.com/mir-protocol/plonky2.git", default-features = false}
 plonky2x = { git = "https://github.com/succinctlabs/succinctx.git" }
