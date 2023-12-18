@@ -13,7 +13,9 @@ path = "bin/verify.rs"
 [dependencies]
 plonky2 = { git = "https://github.com/mir-protocol/plonky2.git", default-features = false}
 plonky2x = { git = "https://github.com/succinctlabs/succinctx.git" }
+bitcoincore-rpc = "0.18.0"
 num-bigint = "0.4.4"
+dotenv = "0.15.0"
 ethers = "2.0.11"
 serde = "1.0.193"
 hex = "0.4.3"
