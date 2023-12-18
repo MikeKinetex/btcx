@@ -2,7 +2,7 @@ use plonky2x::prelude::{
     ArrayVariable, CircuitBuilder, PlonkParameters
 };
 
-use crate::header::BitcoinHeaderVerify;
+use crate::builder::header::BitcoinHeaderVerify;
 use crate::vars::*;
 
 pub trait BitcoinMultiVerify<L: PlonkParameters<D>, const D: usize> {

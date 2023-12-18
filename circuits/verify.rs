@@ -8,7 +8,7 @@ use plonky2x::prelude::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::multi::BitcoinMultiVerify;
+use crate::builder::multi::BitcoinMultiVerify;
 use crate::input::InputDataFetcher;
 use crate::vars::*;
 
