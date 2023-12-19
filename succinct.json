@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/succinctlabs/succinctx/main/assets/schema.json",
+  "entrypoints": [
+      {
+          "name": "verify",
+          "framework": "plonky2x",
+          "baseDir": ".",
+          "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin verify --release build && mv ./target/release/verify ./build/verify",
+          "proveCommand": "RUST_LOG=info ./build/verify prove input.json"
+      }
+  ]
+}
