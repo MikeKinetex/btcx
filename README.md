@@ -1,1 +1,2 @@
-# plonky2x-btc-warp
+# BTCX
+Implementation of zero-knowledge proof circuits for Bitcoin, built with [SuccinctX](https://github.com/succinctlabs/succinctx), based on [btc-warp](https://github.com/succinctlabs/btc-warp) project.
