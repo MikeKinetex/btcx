@@ -53,47 +53,46 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinHeaderVerify<L, D> for Circui
         &mut self,
         header_bytes: &HeaderBytesVariable
     ) -> U256Variable {
-        let const_32 = self.constant::<U32Variable>(32);
-        let const_1 = self.one::<U32Variable>();
-
         // Extract difficulty exponent from header
         let difficulty_exp = U32Variable::from_be_bits(
             &header_bytes.index(EXP_BYTE_INDEX).as_be_bits(), 
             self
         );
 
+        let const_32 = self.constant::<U32Variable>(32);
+        let const_1 = self.one::<U32Variable>();
+
+        let mantissa_index_1 = self.sub(const_32, difficulty_exp);
+        let mantissa_index_2 = self.add(const_1, mantissa_index_1);
+        let mantissa_index_3 = self.add(const_1, mantissa_index_2);
+
         let mut threshold_bytes = Vec::<ByteVariable>::new();
 
         for j in 0..32 {
             let const_index = self.constant::<U32Variable>(j as u32);
 
-            let index_1 = self.sub(const_32, difficulty_exp);
-            let is_first_mantissa_byte = self.is_equal(const_index, index_1);
-            let threshold_byte_1 = ByteVariable(
-                header_bytes.index(MANTISSA_FIRST_BYTE_INDEX)
-                .as_be_bits()
-                .map(|i| self.and(is_first_mantissa_byte, i))
+            let is_first_mantissa_byte = self.is_equal(const_index, mantissa_index_1);
+            let is_second_mantissa_byte = self.is_equal(const_index, mantissa_index_2);
+            let is_third_mantissa_byte = self.is_equal(const_index, mantissa_index_3);
+
+            let mut threshold_byte = self.zero::<ByteVariable>();
+
+            threshold_byte = self.select(
+                is_first_mantissa_byte, 
+                header_bytes[MANTISSA_FIRST_BYTE_INDEX], 
+                threshold_byte
             );
-
-            let index_2 = self.add(const_1, index_1);
-            let is_second_mantissa_byte = self.is_equal(const_index, index_2);
-            let threshold_byte_2 = ByteVariable(
-                header_bytes.index(MANTISSA_SECOND_BYTE_INDEX)
-                .as_be_bits()
-                .map(|i| self.and(is_second_mantissa_byte, i))
+            threshold_byte = self.select(
+                is_second_mantissa_byte, 
+                header_bytes[MANTISSA_SECOND_BYTE_INDEX], 
+                threshold_byte
             );
-
-            let index_3 = self.add(const_1, index_2);
-            let is_third_mantissa_byte = self.is_equal(const_index, index_3);
-            let threshold_byte_3 = ByteVariable(
-                header_bytes.index(MANTISSA_THIRD_BYTE_INDEX)
-                .as_be_bits()
-                .map(|i| self.and(is_third_mantissa_byte, i))
+            threshold_byte = self.select(
+                is_third_mantissa_byte, 
+                header_bytes[MANTISSA_THIRD_BYTE_INDEX], 
+                threshold_byte
             );
-
-            let threshold_byte_1_2 = self.or(threshold_byte_1, threshold_byte_2);
-            let threshold_byte = self.or(threshold_byte_1_2, threshold_byte_3);
-
+            
             threshold_bytes.push(threshold_byte);
         }
 
