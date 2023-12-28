@@ -3,9 +3,15 @@ use plonky2x::prelude::{
 };
 
 use crate::builder::header::BitcoinHeaderVerify;
+use crate::consts::*;
 use crate::vars::*;
 
 pub trait BitcoinMultiVerify<L: PlonkParameters<D>, const D: usize> {
+    fn get_parent_hash(
+        &mut self,
+        header: &HeaderBytesVariable
+    ) -> BlockHashVariable;
+
     fn validate_headers<const UPDATE_HEADERS_COUNT: usize>(
         &mut self,
         prev_header_hash: &BlockHashVariable,
@@ -17,6 +23,13 @@ pub trait BitcoinMultiVerify<L: PlonkParameters<D>, const D: usize> {
 }
 
 impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for CircuitBuilder<L, D> {
+    fn get_parent_hash(
+        &mut self,
+        header: &HeaderBytesVariable
+    ) -> BlockHashVariable {
+        header[HEADER_PARENT_HASH_INDEX..HEADER_PARENT_HASH_INDEX + 32].try_into().unwrap()
+    }
+
     fn validate_headers<const UPDATE_HEADERS_COUNT: usize>(
         &mut self,
         prev_header_hash: &BlockHashVariable,
@@ -32,21 +45,17 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
         let mut hashes: Vec<BlockHashVariable> = Vec::new();
         let mut work: Vec<WorkVariable> = Vec::new();
 
-        let mut parent_hash = *prev_header_hash;
-
         for h in 0..UPDATE_HEADERS_COUNT {
             let header = self.validate_header(&update_headers_bytes[h]);
             hashes.push(header.hash);
 
-            if h > 0 {
-                parent_hash = hashes[h - 1];
-            }
-
-            self.assert_is_equal(parent_hash, BlockHashVariable::from(&update_headers_bytes[h][4..36]));
+            let parent_hash = self.get_parent_hash(&update_headers_bytes[h]);
 
             if h == 0 {
+                self.assert_is_equal(*prev_header_hash, parent_hash);
                 work.push(header.work);
             } else {
+                self.assert_is_equal(hashes[h - 1], parent_hash);
                 work.push(
                     self.add(work[h - 1], header.work)
                 );

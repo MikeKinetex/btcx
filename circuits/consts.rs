@@ -7,3 +7,5 @@ pub const EXP_BYTE_INDEX: usize = 75;
 pub const MANTISSA_FIRST_BYTE_INDEX: usize = 74;
 pub const MANTISSA_SECOND_BYTE_INDEX: usize = 73;
 pub const MANTISSA_THIRD_BYTE_INDEX: usize = 72;
+
+pub const HEADER_PARENT_HASH_INDEX: usize = 4;
