@@ -159,8 +159,17 @@ mod tests {
     }
 
     #[test]
-    fn test_verify() {
+    fn test_verify_genesis_10() {
         const UPDATE_HEADERS_COUNT: usize = 10;
+        let height = 0;
+        let header = bytes32!("6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000");
+        let threshold = U256::from_dec_str("26959535291011309493156476344723991336010898738574164086137773096960").unwrap();
+        test_verify_template::<UPDATE_HEADERS_COUNT>(height, header, threshold);
+    }
+
+    #[test]
+    fn test_verify_200000_100() {
+        const UPDATE_HEADERS_COUNT: usize = 100;
         let height = 200000;
         let header = bytes32!("bf0e2e13fce62f3a5f15903a177ad6a258a01f164aefed7d4a03000000000000");
         let threshold = U256::from_dec_str("9412783771427520201810837309176674245361798887059324066070528").unwrap();
