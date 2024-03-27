@@ -1,11 +1,9 @@
 use std::ops::Index;
 
-use plonky2x::frontend::vars::BoolVariable;
 use plonky2x::prelude::{
-    CircuitBuilder,
-    PlonkParameters, U32Variable, 
-    Bytes32Variable, BytesVariable, ByteVariable,
-    LessThanOrEqual
+    CircuitBuilder, PlonkParameters, 
+    BoolVariable, U32Variable, LessThanOrEqual,
+    Bytes32Variable, BytesVariable, ByteVariable
 };
 
 use crate::consts::*;

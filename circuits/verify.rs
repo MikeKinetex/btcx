@@ -38,7 +38,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinVerifyCircuit<L, D> for Circu
         let update_headers_bytes = 
           output_stream.read::<ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>>(self);
 
-        self.validate_headers(&prev_header_hash, &threshold, &update_headers_bytes)
+        self.validate_headers(&prev_block_number, &prev_header_hash, &threshold, &update_headers_bytes)
     }
 }
 
