@@ -3,68 +3,45 @@ use plonky2x::prelude::{
 };
 
 use crate::builder::header::BitcoinHeaderVerify;
-use crate::consts::*;
 use crate::vars::*;
 
 pub trait BitcoinMultiVerify<L: PlonkParameters<D>, const D: usize> {
-    fn get_parent_hash(
-        &mut self,
-        header: &HeaderBytesVariable
-    ) -> BlockHashVariable;
-
     fn validate_headers<const UPDATE_HEADERS_COUNT: usize>(
         &mut self,
         prev_header_hash: &BlockHashVariable,
+        threshold: &ThresholdVariable,
         update_headers_bytes: &ArrayVariable<
             HeaderBytesVariable,
             UPDATE_HEADERS_COUNT
         >
-    ) -> (ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>, WorkVariable);
+    ) -> ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for CircuitBuilder<L, D> {
-    fn get_parent_hash(
-        &mut self,
-        header: &HeaderBytesVariable
-    ) -> BlockHashVariable {
-        header[HEADER_PARENT_HASH_INDEX..HEADER_PARENT_HASH_INDEX + 32].try_into().unwrap()
-    }
-
     fn validate_headers<const UPDATE_HEADERS_COUNT: usize>(
         &mut self,
         prev_header_hash: &BlockHashVariable,
+        threshold: &ThresholdVariable,
         update_headers_bytes: &ArrayVariable<
             HeaderBytesVariable,
             UPDATE_HEADERS_COUNT
         >
-    ) -> (ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>, WorkVariable) {
-        if UPDATE_HEADERS_COUNT < 2 {
-            panic!("Not enough headers to form a chain");
-        }
-
+    ) -> ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT> {
         let mut hashes: Vec<BlockHashVariable> = Vec::new();
-        let mut work: Vec<WorkVariable> = Vec::new();
 
         for h in 0..UPDATE_HEADERS_COUNT {
             let header = self.validate_header(&update_headers_bytes[h]);
+            
+            self.assert_is_equal(*threshold, header.threshold);
+            self.assert_is_equal(
+                if h == 0 { *prev_header_hash } else { hashes[h - 1] }, 
+                header.parent_hash
+            );
+
             hashes.push(header.hash);
-
-            let parent_hash = self.get_parent_hash(&update_headers_bytes[h]);
-
-            if h == 0 {
-                self.assert_is_equal(*prev_header_hash, parent_hash);
-                work.push(header.work);
-            } else {
-                self.assert_is_equal(hashes[h - 1], parent_hash);
-                work.push(
-                    self.add(work[h - 1], header.work)
-                );
-            }
         }
 
-        let total_work = work[work.len() - 2];
-
-        (ArrayVariable::from(hashes), total_work)
+        ArrayVariable::from(hashes)
     }
 }
 
@@ -72,11 +49,11 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
 #[cfg(test)]
 mod test {
     use std::env;
-    use ethers::types::H256;
+    use ethers::types::{H256, U256};
 
     use plonky2x::prelude::{
         bytes, bytes32,
-        DefaultBuilder, ArrayVariable
+        DefaultBuilder
     };
 
     use crate::consts::*;
@@ -91,11 +68,11 @@ mod test {
         let mut builder = DefaultBuilder::new();
         
         let prev_header_hash = builder.read::<BlockHashVariable>();
+        let threshold = builder.read::<ThresholdVariable>();
         let update_headers_bytes = builder.read::<ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>>();
-        let (update_headers_hashes, update_total_work) = builder.validate_headers(&prev_header_hash, &update_headers_bytes);
+        let update_headers_hashes = builder.validate_headers(&prev_header_hash, &threshold, &update_headers_bytes);
         
         builder.write(update_headers_hashes);
-        builder.write(update_total_work);
 
         log::debug!("Building circuit");
         let circuit = builder.build();
@@ -103,6 +80,7 @@ mod test {
 
         let mut input = circuit.input();
         input.write::<BlockHashVariable>(mock_prev_header_hash());
+        input.write::<ThresholdVariable>(mock_threshold());
         input.write::<ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>>(mock_headers_bytes());
         
         log::debug!("Generating circuit proof");
@@ -114,17 +92,18 @@ mod test {
         log::debug!("Done verifying circuit proof");
 
         let headers_hashes = output.read::<ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>>();
-        let total_work = output.read::<WorkVariable>();
-
         let expected_hashes = mock_expected_headers_hashes();
 
         assert!(headers_hashes[0] == expected_hashes[0]);
         assert!(headers_hashes[UPDATE_HEADERS_COUNT - 1] == expected_hashes[UPDATE_HEADERS_COUNT - 1]);
-        assert!(total_work.as_u64() == mock_expected_total_work());
     }
 
     fn mock_prev_header_hash() -> H256 {
         bytes32!("0000000000000000000000000000000000000000000000000000000000000000")
+    }
+
+    fn mock_threshold() -> U256 {
+        U256::from_dec_str("26959535291011309493156476344723991336010898738574164086137773096960").unwrap()
     }
 
     fn mock_headers_bytes() -> Vec<[u8; HEADER_BYTES_LENGTH]> {
@@ -155,9 +134,5 @@ mod test {
             bytes32!("c60ddef1b7618ca2348a46e868afc26e3efc68226c78aa47f8488c4000000000"),
             bytes32!("0508085c47cc849eb80ea905cc7800a3be674ffc57263cf210c59d8d00000000"),
         ]
-    }
-    
-    fn mock_expected_total_work() -> u64 {
-        38655295497
     }
 }

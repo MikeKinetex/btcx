@@ -5,17 +5,17 @@ use num_bigint::BigUint;
 use crate::consts::*;
 
 pub fn compute_exp_and_mantissa(header_bytes: [u8; HEADER_BYTES_LENGTH]) -> (u32, u64) {
-    let exp = (header_bytes[EXP_BYTE_INDEX] as u32) - 3;
+    let exp = (header_bytes[HEADER_EXP_BYTE_INDEX] as u32) - 3;
 
     let mut mantissa = 0;
-    mantissa += header_bytes[MANTISSA_THIRD_BYTE_INDEX] as u64;
-    mantissa += (header_bytes[MANTISSA_SECOND_BYTE_INDEX] as u64) << 8;
-    mantissa += (header_bytes[MANTISSA_FIRST_BYTE_INDEX] as u64) << 16;
+    mantissa += header_bytes[HEADER_MANTISSA_THIRD_BYTE_INDEX] as u64;
+    mantissa += (header_bytes[HEADER_MANTISSA_SECOND_BYTE_INDEX] as u64) << 8;
+    mantissa += (header_bytes[HEADER_MANTISSA_FIRST_BYTE_INDEX] as u64) << 16;
 
     (exp, mantissa)
 }
 
-pub fn compute_threshold(exp: u32, mantissa: u64) -> [bool; 256] {
+pub fn compute_threshold(exp: u32, mantissa: u64) -> BigUint {
     let mut threshold_bits = [false; 256];
 
     for i in 0..256 {
@@ -24,20 +24,21 @@ pub fn compute_threshold(exp: u32, mantissa: u64) -> [bool; 256] {
         }
     }
 
-    threshold_bits
+    BigUint::from_bytes_be(
+        &bits_to_bytes32(threshold_bits)
+    )
 }
 
-pub fn compute_work(threshold_bits: [bool; 256]) -> BigUint {
+pub fn compute_work(threshold: BigUint) -> BigUint {
     let mut acc = BigUint::new(vec![1]);
-    let mut denominator = BigUint::new(vec![0]);
-    for i in 0..256 {
-        if threshold_bits[255 - i] {
-            denominator.add_assign(acc.clone());
-        }
+    let mut denominator = acc.clone();
+    denominator.add_assign(threshold);
+
+    for _ in 0..256 {
         acc.mul_assign(BigUint::new(vec![2]));
     }
     let numerator = acc;
-
+    
     numerator / denominator
 }
 
