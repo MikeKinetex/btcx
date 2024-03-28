@@ -202,3 +202,91 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
         self.select(is_lower_pow_limit, new_target, pow_limit)
     }
 }
+
+
+#[cfg(test)]
+mod test {
+    use std::env;
+    use std::str::FromStr;
+    use ethers::types::U256;
+
+    use num_bigint::BigUint;
+    use plonky2x::prelude::DefaultBuilder;
+
+    use crate::utils::*;
+    use super::*;
+
+    fn test_adjust_threshold_template(
+        period_threshold: &str,
+        period_start_ts: u32,
+        period_end_ts: u32
+    ) {
+        env::set_var("RUST_LOG", "debug");
+        env_logger::try_init().unwrap_or_default();
+
+        log::debug!("Defining circuit");
+        let mut builder = DefaultBuilder::new();
+
+        let threshold = builder.read::<ThresholdVariable>();
+        let period_start_timestamp = builder.read::<U32Variable>();
+        let period_end_timestamp = builder.read::<U32Variable>();
+
+        let adjusted_threshold = builder.adjust_threshold(
+            &threshold,
+            period_start_timestamp,
+            period_end_timestamp
+        );
+        builder.write(adjusted_threshold);
+    
+        log::debug!("Building circuit");
+        let circuit = builder.build();
+        log::debug!("Done building circuit");
+
+        let period_threshold_u256 = U256::from_dec_str(period_threshold).unwrap();
+        
+        let mut input = circuit.input();
+        input.write::<ThresholdVariable>(period_threshold_u256);
+        input.write::<U32Variable>(period_start_ts);
+        input.write::<U32Variable>(period_end_ts);
+
+        log::debug!("Generating circuit proof");
+        let (proof, output) = circuit.prove(&input);
+        log::debug!("Done generating circuit proof");
+
+        log::debug!("Verifying circuit proof");
+        circuit.verify(&proof, &input, &output);
+        log::debug!("Done verifying circuit proof");
+
+        let mut _output = output.clone();
+        let adjusted_threshold = _output.read::<ThresholdVariable>();
+
+        let expected_threshold = U256::from_little_endian(
+            adjust_threshold(
+                BigUint::from_str(period_threshold).unwrap(),
+                period_start_ts, 
+                period_end_ts
+            ).to_bytes_le().as_slice()
+        );
+
+        log::debug!("Adjusted threshold: {:?} = {:?}", adjusted_threshold, expected_threshold);
+        assert_eq!(adjusted_threshold, expected_threshold);
+    }
+
+    #[test]
+    fn test_adjust_threshold_201600() {
+        test_adjust_threshold_template(
+            "8825801199382903987726989797449454220615414953524072026210304",
+            1349226660,
+            1350429295
+        );
+    }
+
+    #[test]
+    fn test_adjust_threshold_powlimit() {
+        test_adjust_threshold_template(
+            "26959946667150639794667015087019630673637144422540572481103610249215",
+            0,
+            2419200 // 14 * 24 * 60 * 60 * 2
+        );
+    }
+}

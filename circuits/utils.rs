@@ -42,6 +42,27 @@ pub fn compute_work(threshold: BigUint) -> BigUint {
     numerator / denominator
 }
 
+pub fn adjust_threshold(threshold: BigUint, period_start_time: u32, period_end_time: u32) -> BigUint {
+    let pow_target_timespan = 14 * 24 * 60 * 60;
+    let pow_limit = BigUint::from_bytes_be(&[0xff; 28]);
+            
+    let timespan = period_end_time - period_start_time;
+    let timespan = if timespan < pow_target_timespan / 4 {
+        pow_target_timespan / 4
+    } else if timespan > pow_target_timespan * 4 {
+        pow_target_timespan * 4
+    } else {
+        timespan
+    };
+
+    let mut new_threshold = threshold * timespan / pow_target_timespan;
+    if new_threshold > pow_limit {
+        new_threshold = pow_limit;
+    }
+
+    new_threshold
+}
+
 pub fn bits_to_bytes32(bits: [bool; 256]) -> [u8; 32] {
     let mut bytes = [0; 32];
     for i in 0..256 {
