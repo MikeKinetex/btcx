@@ -174,7 +174,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
 
         let pwl_limbs = (0..8)
             .map(|i| {
-                self.constant::<U32Variable>(if i == 0 { 0 } else { u32::MAX }).variable
+                self.constant::<U32Variable>(if i == 7 { 0 } else { u32::MAX }).variable
             })
             .collect::<Vec<_>>();
         let pow_limit = U256Variable::from_variables_unsafe(&pwl_limbs.as_slice());     
