@@ -1,0 +1,10 @@
+node_modules
+.yarn
+yarn-error.log
+.env
+coverage
+coverage.json
+typechain
+typechain-types
+cache
+artifacts
