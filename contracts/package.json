@@ -12,7 +12,7 @@
     "b": "yarn build",
     "lint": "hardhat check",
     "l": "yarn lint",
-    "prettify": "prettier --write contracts",
+    "prettify": "prettier --write src",
     "p": "yarn prettify",
     "test": "hardhat test",
     "t": "yarn test",
