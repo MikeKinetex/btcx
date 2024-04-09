@@ -20,6 +20,8 @@ contract BTCX is IBTCX {
     mapping(uint64 => uint256) private retargets;
 
     constructor(uint64 genesisBlockHeight, bytes32 genesisBlockHash, bytes32 genesisBlockUtreexo, uint256 genesisBlockTarget, address verifier) {
+        if (genesisBlockHeight % 2016 != 0) revert InvalidGenesisBlockHeight();
+
         GENESIS_BLOCK_HEIGHT = genesisBlockHeight;
         GENESIS_BLOCK_HASH = genesisBlockHash;
         VERIFIER = IVerifier(verifier);
@@ -60,21 +62,25 @@ contract BTCX is IBTCX {
         _validateByHash(parentBlockHash);
 
         uint64 parentBlockHeight = blocks[parentBlockHash];
-        uint256 currentTarget = retargets[parentBlockHeight];
+        uint256 currentTarget = retargets[parentBlockHeight / 2016];
         uint64 startPeriodBlockHeight = parentBlockHeight - (parentBlockHeight % 2016);
         uint64 endPeriodBlockHeight = startPeriodBlockHeight + 2015;
 
         if (parentBlockHeight + blockHashes.length > endPeriodBlockHeight) {
             // verify blocks with retargeting
             bytes32 startPeriodBlockHash = hashes[startPeriodBlockHeight];
-            uint256[] memory newRetargets = VERIFIER.verifyWithRetargeting(
-                blockHashes,
+            (uint256[] memory newRetargets, bytes32 endBlockHash) = VERIFIER.verifyWithRetargeting(
                 parentBlockHeight,
                 parentBlockHash,
                 startPeriodBlockHash,
                 currentTarget,
                 proof
             );
+
+            // check end block hash
+            if (blockHashes[blockHashes.length - 1] != endBlockHash) {
+                revert InvalidInput();
+            }
 
             // calculate chain work (should be optimized)
             uint256 chainWork_ = chainWork;
@@ -97,6 +103,7 @@ contract BTCX is IBTCX {
                 heightIndex++;
             }
 
+            // ignore forks with less work done
             if (chainWork_ <= chainWork) revert ForksNotSupported();
 
             // store new chainwork
@@ -119,16 +126,21 @@ contract BTCX is IBTCX {
             if (parentBlockHeight + blockHashes.length <= chainTip) revert ForksNotSupported();
 
             // verify blocks without retargeting
-            VERIFIER.verify(blockHashes, parentBlockHeight, parentBlockHash, currentTarget, proof);
-            
+            bytes32 endBlockHash = VERIFIER.verify(parentBlockHeight, parentBlockHash, currentTarget, proof);
+
+            // check end block hash
+            if (blockHashes[blockHashes.length - 1] != endBlockHash) {
+                revert InvalidInput();
+            }
+
             // calculate chainWork
-            chainWork += _calculateChainWork(currentTarget) * parentBlockHeight == chainTip
-                ? blockHashes.length
-                : (blockHashes.length + parentBlockHeight - chainTip);
+            chainWork +=
+                _calculateChainWork(currentTarget) *
+                (parentBlockHeight == chainTip ? blockHashes.length : (blockHashes.length + parentBlockHeight - chainTip));
         }
 
         // update the chain with new blocks
-        _updateChainWithNewBlocks(blockHashes);
+        _updateChainWithNewBlocks(parentBlockHeight, blockHashes);
     }
 
     function submitUtreexo(bytes32 blockHash, bytes calldata proof) external {
@@ -153,11 +165,16 @@ contract BTCX is IBTCX {
         if (blocks[blockHash] == 0 && blockHash != GENESIS_BLOCK_HASH) revert BlockNotFound();
     }
 
-    function _updateChainWithNewBlocks(bytes32[] calldata blockHashes) internal {
+    function _updateChainWithNewBlocks(uint64 parentBlockHeight, bytes32[] calldata blockHashes) internal {
+        uint64 chainTip_ = parentBlockHeight;
+
         for (uint256 i = 0; i < blockHashes.length; i++) {
-            hashes[++chainTip] = blockHashes[i];
-            blocks[blockHashes[i]] = chainTip;
+            hashes[++chainTip_] = blockHashes[i];
+            blocks[blockHashes[i]] = chainTip_;
         }
-        emit NewTip(chainTip, hashes[chainTip]);
+
+        chainTip = chainTip_;
+
+        emit NewTip(chainTip, hashes[chainTip_]);
     }
 }

@@ -3,25 +3,23 @@ pragma solidity ^0.8.24;
 
 import {IVerifier} from "../../interfaces/IVerifier.sol";
 
-contract EVMVerifier is IVerifier {
+contract SuccinctVerifier is IVerifier {
     function verify(
-        bytes32[] calldata /* blockHashes */,
         uint64 /* ancestorBlockHeight */,
         bytes32 /* ancestorBlockHash */,
         uint256 /* currentTarget */,
         bytes calldata /* proof */
-    ) external pure {
+    ) external pure returns (bytes32) {
         revert BlockVerificationNotSupported();
     }
 
     function verifyWithRetargeting(
-        bytes32[] calldata /* blockHashes */,
         uint64 /* ancestorBlockHeight */,
         bytes32 /* ancestorBlockHash */,
         bytes32 /* startPeriodHash */,
         uint256 /* target */,
         bytes calldata /* proof */
-    ) external pure returns (uint256[] memory) {
+    ) external pure returns (uint256[] memory, bytes32) {
         revert RetargetingNotSupported();
     }
 

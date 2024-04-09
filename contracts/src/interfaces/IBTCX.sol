@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 /// @title IBTCX Interface
 /// @dev Interface for the BTCX contract which handles Bitcoin block header verification and chain management within EVM-like networks.
 interface IBTCX {
+    error InvalidGenesisBlockHeight();
+    error InvalidInput();
     error BlockNotFound();
     error UtreexoNotFound();
     error ForksNotSupported();
