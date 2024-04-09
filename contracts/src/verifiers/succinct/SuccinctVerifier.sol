@@ -23,7 +23,11 @@ contract SuccinctVerifier is IVerifier {
         revert RetargetingNotSupported();
     }
 
-    function verifyUtreexo(bytes32 /* blockHash */, bytes32 /* parentUtreexo */, bytes calldata /* proof */) external pure returns (bytes32[] memory) {
+    function verifyUtreexo(
+        bytes32 /* blockHash */,
+        bytes32 /* parentUtreexo */,
+        bytes calldata /* proof */
+    ) external pure returns (bytes32[] memory) {
         revert UtreexoNotSupported();
     }
 }

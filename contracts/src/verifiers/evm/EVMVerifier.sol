@@ -34,7 +34,11 @@ contract EVMVerifier is IVerifier {
         if (shift > 0) {
             bool neetRetarget = shift < psz - 2;
 
-            parentBlockHash = _verify(parentBlockHash, currentTarget, ProofDecoder.slice(proof, 2, neetRetarget ? 2 + shift : psz));
+            parentBlockHash = _verify(
+                parentBlockHash,
+                currentTarget,
+                ProofDecoder.slice(proof, 2, neetRetarget ? 2 + shift : psz)
+            );
 
             if (!neetRetarget) {
                 return (new uint256[](0), parentBlockHash);
@@ -62,11 +66,19 @@ contract EVMVerifier is IVerifier {
         );
     }
 
-    function verifyUtreexo(bytes32 /* blockHash */, bytes32 /* parentUtreexo */, bytes calldata /* proof */) external pure returns (bytes32[] memory) {
+    function verifyUtreexo(
+        bytes32 /* blockHash */,
+        bytes32 /* parentUtreexo */,
+        bytes calldata /* proof */
+    ) external pure returns (bytes32[] memory) {
         revert UtreexoNotSupported();
     }
 
-    function _verify(bytes32 ancestorBlockHash, uint256 currentTarget, bytes calldata proof) internal pure returns (bytes32) {
+    function _verify(
+        bytes32 ancestorBlockHash,
+        uint256 currentTarget,
+        bytes calldata proof
+    ) internal pure returns (bytes32) {
         uint256 nHeaders = ProofDecoder.size(proof);
         if (nHeaders < 1 || nHeaders > 2016) revert InvalidProofLength();
 
@@ -105,13 +117,23 @@ contract EVMVerifier is IVerifier {
         uint256[] memory retargets = new uint256[](k);
 
         for (uint256 i = 0; i < k; i++) {
-            uint32 periodStartTime = i == 0 ? lastPeriodStartTime : ProofDecoder.get(headers, (i - 1) * 2016).timestamp();
+            uint32 periodStartTime = i == 0
+                ? lastPeriodStartTime
+                : ProofDecoder.get(headers, (i - 1) * 2016).timestamp();
             uint32 periodEndTime = i == 0 ? lastPeriodEndTime : ProofDecoder.get(headers, i * 2016 - 1).timestamp();
-            uint256 nextTarget = _adjustTarget(i == 0 ? currentTarget : retargets[i - 1], periodStartTime, periodEndTime);
+            uint256 nextTarget = _adjustTarget(
+                i == 0 ? currentTarget : retargets[i - 1],
+                periodStartTime,
+                periodEndTime
+            );
 
             retargets[i] = _nBitsToTarget(ProofDecoder.get(headers, i * 2016).nBits()) & nextTarget;
 
-            parentBlockHash = _verify(parentBlockHash, nextTarget, ProofDecoder.slice(headers, i * 2016, i < k - 1 ? (i + 1) * 2016 : numHeaders));
+            parentBlockHash = _verify(
+                parentBlockHash,
+                nextTarget,
+                ProofDecoder.slice(headers, i * 2016, i < k - 1 ? (i + 1) * 2016 : numHeaders)
+            );
         }
 
         return (retargets, parentBlockHash);
@@ -128,12 +150,20 @@ contract EVMVerifier is IVerifier {
             target = nWord << (8 * (nSize - 3));
         }
 
-        if (nWord != 0 && ((nBits & 0x00800000) != 0 || ((nSize > 34) || (nWord > 0xff && nSize > 33) || (nWord > 0xffff && nSize > 32)))) {
+        if (
+            nWord != 0 &&
+            ((nBits & 0x00800000) != 0 ||
+                ((nSize > 34) || (nWord > 0xff && nSize > 33) || (nWord > 0xffff && nSize > 32)))
+        ) {
             revert InvalidTarget();
         }
     }
 
-    function _adjustTarget(uint256 target, uint32 periodStartTime, uint32 periodEndTime) internal pure returns (uint256 newTarget) {
+    function _adjustTarget(
+        uint256 target,
+        uint32 periodStartTime,
+        uint32 periodEndTime
+    ) internal pure returns (uint256 newTarget) {
         uint32 powTargetTimespan = 14 * 24 * 60 * 60;
         uint256 powLimit = 0x00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff;
 

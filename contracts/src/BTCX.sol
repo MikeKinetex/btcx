@@ -19,7 +19,13 @@ contract BTCX is IBTCX {
     mapping(bytes32 => bytes32) private utreexo;
     mapping(uint64 => uint256) private retargets;
 
-    constructor(uint64 genesisBlockHeight, bytes32 genesisBlockHash, bytes32 genesisBlockUtreexo, uint256 genesisBlockTarget, address verifier) {
+    constructor(
+        uint64 genesisBlockHeight,
+        bytes32 genesisBlockHash,
+        bytes32 genesisBlockUtreexo,
+        uint256 genesisBlockTarget,
+        address verifier
+    ) {
         if (genesisBlockHeight % 2016 != 0) revert InvalidGenesisBlockHeight();
 
         GENESIS_BLOCK_HEIGHT = genesisBlockHeight;
@@ -136,7 +142,11 @@ contract BTCX is IBTCX {
             // calculate chainWork
             chainWork +=
                 _calculateChainWork(currentTarget) *
-                (parentBlockHeight == chainTip ? blockHashes.length : (blockHashes.length + parentBlockHeight - chainTip));
+                (
+                    parentBlockHeight == chainTip
+                        ? blockHashes.length
+                        : (blockHashes.length + parentBlockHeight - chainTip)
+                );
         }
 
         // update the chain with new blocks

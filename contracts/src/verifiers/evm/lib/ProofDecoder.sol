@@ -6,7 +6,11 @@ library ProofDecoder {
         return proof[80 * index:80 * (index + 1)];
     }
 
-    function slice(bytes calldata proof, uint256 startIndex, uint256 endIndex) internal pure returns (bytes calldata header) {
+    function slice(
+        bytes calldata proof,
+        uint256 startIndex,
+        uint256 endIndex
+    ) internal pure returns (bytes calldata header) {
         return proof[80 * startIndex:80 * endIndex];
     }
 
