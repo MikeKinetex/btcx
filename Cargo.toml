@@ -10,6 +10,10 @@ path = "circuits/lib.rs"
 name = "verify"
 path = "bin/verify.rs"
 
+[[bin]]
+name = "retarget"
+path = "bin/retarget.rs"
+
 [dependencies]
 plonky2 = { git = "https://github.com/mir-protocol/plonky2.git", default-features = false}
 plonky2x = { git = "https://github.com/succinctlabs/succinctx.git", tag = "v1.0.3" }
