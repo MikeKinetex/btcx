@@ -1,98 +1,67 @@
 use std::ops::Index;
 
 use plonky2x::prelude::{
-    CircuitBuilder, PlonkParameters, 
-    BoolVariable, U32Variable, LessThanOrEqual,
-    Bytes32Variable, BytesVariable, ByteVariable
+    BoolVariable, ByteVariable, Bytes32Variable, BytesVariable, CircuitBuilder, LessThanOrEqual,
+    PlonkParameters, U32Variable,
 };
 
 use crate::consts::*;
 use crate::vars::*;
 
 pub trait BitcoinHeaderVerify<L: PlonkParameters<D>, const D: usize> {
-    fn calculate_hash(
-        &mut self,
-        header_bytes: &HeaderBytesVariable
-    ) -> BlockHashVariable;
+    fn calculate_hash(&mut self, header_bytes: &HeaderBytesVariable) -> BlockHashVariable;
 
-    fn get_parent_hash(
-        &mut self,
-        header: &HeaderBytesVariable
-    ) -> BlockHashVariable;
+    fn get_parent_hash(&mut self, header: &HeaderBytesVariable) -> BlockHashVariable;
 
-    fn get_merkle_root(
-        &mut self,
-        header: &HeaderBytesVariable
-    ) -> Bytes32Variable;
+    fn get_merkle_root(&mut self, header: &HeaderBytesVariable) -> Bytes32Variable;
 
-    fn get_timestamp(
-        &mut self,
-        header: &HeaderBytesVariable
-    ) -> U32Variable;
+    fn get_timestamp(&mut self, header: &HeaderBytesVariable) -> U32Variable;
 
-    fn get_threshold(
-        &mut self,
-        header_bytes: &HeaderBytesVariable
-    ) -> ThresholdVariable;
+    fn get_threshold(&mut self, header_bytes: &HeaderBytesVariable) -> ThresholdVariable;
 
     fn validate_threshold(
         &mut self,
         threshold: &ThresholdVariable,
-        block_hash: BlockHashVariable
+        block_hash: BlockHashVariable,
     ) -> BoolVariable;
 
-    fn validate_header(
-        &mut self,
-        header_bytes: &HeaderBytesVariable
-    ) -> BitcoinHeaderVariable;
+    fn validate_header(&mut self, header_bytes: &HeaderBytesVariable) -> BitcoinHeaderVariable;
 }
 
-
 impl<L: PlonkParameters<D>, const D: usize> BitcoinHeaderVerify<L, D> for CircuitBuilder<L, D> {
-    fn calculate_hash(
-        &mut self,
-        header_bytes: &HeaderBytesVariable
-    ) -> BlockHashVariable {
+    fn calculate_hash(&mut self, header_bytes: &HeaderBytesVariable) -> BlockHashVariable {
         let sha256_1 = self.curta_sha256(&header_bytes.0);
         self.curta_sha256(&sha256_1.as_bytes())
     }
 
-    fn get_parent_hash(
-        &mut self,
-        header_bytes: &HeaderBytesVariable
-    ) -> BlockHashVariable {
-        header_bytes[HEADER_PARENT_HASH_INDEX..HEADER_PARENT_HASH_INDEX + 32].try_into().unwrap()
+    fn get_parent_hash(&mut self, header_bytes: &HeaderBytesVariable) -> BlockHashVariable {
+        header_bytes[HEADER_PARENT_HASH_INDEX..HEADER_PARENT_HASH_INDEX + 32]
+            .try_into()
+            .unwrap()
     }
 
-    fn get_merkle_root(
-        &mut self,
-        header_bytes: &HeaderBytesVariable
-    ) -> Bytes32Variable {
-        header_bytes[HEADER_MERKLE_ROOT_INDEX..HEADER_MERKLE_ROOT_INDEX + 32].try_into().unwrap()
+    fn get_merkle_root(&mut self, header_bytes: &HeaderBytesVariable) -> Bytes32Variable {
+        header_bytes[HEADER_MERKLE_ROOT_INDEX..HEADER_MERKLE_ROOT_INDEX + 32]
+            .try_into()
+            .unwrap()
     }
 
-    fn get_timestamp(
-        &mut self,
-        header_bytes: &HeaderBytesVariable
-    ) -> U32Variable {
+    fn get_timestamp(&mut self, header_bytes: &HeaderBytesVariable) -> U32Variable {
         U32Variable::from_be_bits(
             &header_bytes[HEADER_TIMESTAMP_INDEX..HEADER_TIMESTAMP_INDEX + 4]
                 .iter()
                 .rev()
                 .flat_map(|byte| byte.as_be_bits())
                 .collect::<Vec<_>>(),
-            self
+            self,
         )
     }
 
-    fn get_threshold(
-        &mut self,
-        header_bytes: &HeaderBytesVariable
-    ) -> ThresholdVariable {
+    fn get_threshold(&mut self, header_bytes: &HeaderBytesVariable) -> ThresholdVariable {
         // Extract difficulty exponent from header
         let difficulty_exp = U32Variable::from_be_bits(
-            &header_bytes.index(HEADER_EXP_BYTE_INDEX).as_be_bits(), 
-            self
+            &header_bytes.index(HEADER_EXP_BYTE_INDEX).as_be_bits(),
+            self,
         );
 
         let const_32 = self.constant::<U32Variable>(32);
@@ -114,47 +83,47 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinHeaderVerify<L, D> for Circui
             let mut threshold_byte = self.zero::<ByteVariable>();
 
             threshold_byte = self.select(
-                is_first_mantissa_byte, 
-                header_bytes[HEADER_MANTISSA_FIRST_BYTE_INDEX], 
-                threshold_byte
+                is_first_mantissa_byte,
+                header_bytes[HEADER_MANTISSA_FIRST_BYTE_INDEX],
+                threshold_byte,
             );
             threshold_byte = self.select(
-                is_second_mantissa_byte, 
-                header_bytes[HEADER_MANTISSA_SECOND_BYTE_INDEX], 
-                threshold_byte
+                is_second_mantissa_byte,
+                header_bytes[HEADER_MANTISSA_SECOND_BYTE_INDEX],
+                threshold_byte,
             );
             threshold_byte = self.select(
-                is_third_mantissa_byte, 
-                header_bytes[HEADER_MANTISSA_THIRD_BYTE_INDEX], 
-                threshold_byte
+                is_third_mantissa_byte,
+                header_bytes[HEADER_MANTISSA_THIRD_BYTE_INDEX],
+                threshold_byte,
             );
-            
+
             threshold_bytes.push(threshold_byte);
         }
 
-        Bytes32Variable(BytesVariable(threshold_bytes.as_slice().try_into().unwrap())).as_u256(self)
+        Bytes32Variable(BytesVariable(
+            threshold_bytes.as_slice().try_into().unwrap(),
+        ))
+        .as_u256(self)
     }
 
     fn validate_threshold(
         &mut self,
         threshold: &ThresholdVariable,
-        block_hash: BlockHashVariable
+        block_hash: BlockHashVariable,
     ) -> BoolVariable {
         // reverse hash bytes
         let mut hash_rev = block_hash.as_bytes().clone();
         hash_rev.reverse();
- 
+
         // convert hash to u256
         let hash_u = BlockHashVariable::from(hash_rev).as_u256(self);
-    
+
         // compare hash with threshold
         hash_u.lte(*threshold, self)
     }
 
-    fn validate_header(
-        &mut self,
-        header_bytes: &HeaderBytesVariable
-    ) -> BitcoinHeaderVariable {
+    fn validate_header(&mut self, header_bytes: &HeaderBytesVariable) -> BitcoinHeaderVariable {
         let _true = self._true();
         // calculate hash
         let hash = self.calculate_hash(&header_bytes);
@@ -181,24 +150,20 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinHeaderVerify<L, D> for Circui
             parent_hash,
             merkle_root,
             timestamp,
-            threshold
+            threshold,
         }
     }
 }
 
-
 #[cfg(test)]
 mod test {
-    use std::env;
     use ethers::types::U256;
+    use std::env;
 
-    use plonky2x::prelude::{
-        bytes, bytes32, 
-        DefaultBuilder
-    };
+    use plonky2x::prelude::{bytes, bytes32, DefaultBuilder};
 
-    use crate::utils::*;
     use super::*;
+    use crate::utils::*;
 
     #[test]
     fn test_validate_header() {
@@ -211,7 +176,7 @@ mod test {
         let header_bytes = builder.read::<HeaderBytesVariable>();
         let header = builder.validate_header(&header_bytes);
         builder.write(header);
-       
+
         log::debug!("Building circuit");
         let circuit = builder.build();
         log::debug!("Done building circuit");
@@ -232,20 +197,38 @@ mod test {
         let mut _output = output.clone();
         let header = _output.read::<BitcoinHeaderVariable>();
 
-        let expected_hash = bytes32!("71656d622506312551c033e123d00c4f2bc3742523ba00000000000000000000");
-        let expected_parent_hash = bytes32!("0xfe0c7ab1158d234b8109d23004770f907ce86dd2602600000000000000000000");
-        let expected_merkle_root = bytes32!("0xd4a3d278e4427cd05d83889eee4a74e0d8e88d29b580cd4af081eeca3e5e9be1");
+        let expected_hash =
+            bytes32!("71656d622506312551c033e123d00c4f2bc3742523ba00000000000000000000");
+        let expected_parent_hash =
+            bytes32!("0xfe0c7ab1158d234b8109d23004770f907ce86dd2602600000000000000000000");
+        let expected_merkle_root =
+            bytes32!("0xd4a3d278e4427cd05d83889eee4a74e0d8e88d29b580cd4af081eeca3e5e9be1");
         let expected_timestamp = 1701860856;
         let (exp, mantissa) = compute_exp_and_mantissa(header_input);
-        let expected_threshold = U256::from_little_endian(
-            compute_threshold(exp, mantissa).to_bytes_le().as_slice()
-        );
+        let expected_threshold =
+            U256::from_little_endian(compute_threshold(exp, mantissa).to_bytes_le().as_slice());
 
         log::debug!("Hash: {:?} = {:?}", header.hash, expected_hash);
-        log::debug!("Parent hash: {:?} = {:?}", header.parent_hash, expected_parent_hash);
-        log::debug!("Merke root: {:?} = {:?}", header.merkle_root, expected_merkle_root);
-        log::debug!("Timestamp: {:?} = {:?}", header.timestamp, expected_timestamp);
-        log::debug!("Threshold: {:?} = {:?}", header.threshold, expected_threshold);
+        log::debug!(
+            "Parent hash: {:?} = {:?}",
+            header.parent_hash,
+            expected_parent_hash
+        );
+        log::debug!(
+            "Merke root: {:?} = {:?}",
+            header.merkle_root,
+            expected_merkle_root
+        );
+        log::debug!(
+            "Timestamp: {:?} = {:?}",
+            header.timestamp,
+            expected_timestamp
+        );
+        log::debug!(
+            "Threshold: {:?} = {:?}",
+            header.threshold,
+            expected_threshold
+        );
 
         assert_eq!(header.hash, expected_hash);
         assert_eq!(header.parent_hash, expected_parent_hash);

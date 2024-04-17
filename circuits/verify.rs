@@ -1,9 +1,7 @@
 use plonky2x::backend::circuit::Circuit;
 use plonky2x::frontend::hint::simple::hint::Hint;
 use plonky2x::prelude::{
-    ArrayVariable, U64Variable,
-    CircuitBuilder, PlonkParameters,
-    ValueStream, VariableStream
+    ArrayVariable, CircuitBuilder, PlonkParameters, U64Variable, ValueStream, VariableStream,
 };
 
 use serde::{Deserialize, Serialize};
@@ -35,8 +33,8 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinVerifyCircuit<L, D> for Circu
             input_stream,
             VerifyOffchainInputs::<UPDATE_HEADERS_COUNT> {},
         );
-        let update_headers_bytes = 
-          output_stream.read::<ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>>(self);
+        let update_headers_bytes =
+            output_stream.read::<ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>>(self);
 
         self.validate_headers(&prev_header_hash, &threshold, &update_headers_bytes)
     }
@@ -49,18 +47,17 @@ pub struct VerifyOffchainInputs<const UPDATE_HEADERS_COUNT: usize> {}
 impl<const UPDATE_HEADERS_COUNT: usize, L: PlonkParameters<D>, const D: usize> Hint<L, D>
     for VerifyOffchainInputs<UPDATE_HEADERS_COUNT>
 {
-    fn hint(
-        &self,
-        input_stream: &mut ValueStream<L, D>,
-        output_stream: &mut ValueStream<L, D>,
-    ) {
+    fn hint(&self, input_stream: &mut ValueStream<L, D>, output_stream: &mut ValueStream<L, D>) {
         let prev_block_number = input_stream.read_value::<U64Variable>();
         let prev_header_hash = input_stream.read_value::<BlockHashVariable>();
 
         let mut input_fetcher = InputDataFetcher::default();
-        let update_headers_bytes = input_fetcher.get_update_headers_inputs::<UPDATE_HEADERS_COUNT>(prev_block_number, prev_header_hash);
+        let update_headers_bytes = input_fetcher
+            .get_update_headers_inputs::<UPDATE_HEADERS_COUNT>(prev_block_number, prev_header_hash);
 
-        output_stream.write_value::<ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>>(update_headers_bytes);
+        output_stream.write_value::<ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>>(
+            update_headers_bytes,
+        );
     }
 }
 
@@ -94,10 +91,7 @@ mod tests {
     use std::env;
 
     use ethers::types::{H256, U256};
-    use plonky2x::prelude::{
-        bytes32,
-        DefaultBuilder, GateRegistry, HintRegistry
-    };
+    use plonky2x::prelude::{bytes32, DefaultBuilder, GateRegistry, HintRegistry};
 
     use super::*;
 
@@ -161,7 +155,10 @@ mod tests {
         const UPDATE_HEADERS_COUNT: usize = 10;
         let height = 0;
         let header = bytes32!("6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000");
-        let threshold = U256::from_dec_str("26959535291011309493156476344723991336010898738574164086137773096960").unwrap();
+        let threshold = U256::from_dec_str(
+            "26959535291011309493156476344723991336010898738574164086137773096960",
+        )
+        .unwrap();
         test_verify_template::<UPDATE_HEADERS_COUNT>(height, header, threshold);
     }
 
@@ -170,7 +167,9 @@ mod tests {
         const UPDATE_HEADERS_COUNT: usize = 100;
         let height = 200000;
         let header = bytes32!("bf0e2e13fce62f3a5f15903a177ad6a258a01f164aefed7d4a03000000000000");
-        let threshold = U256::from_dec_str("9412783771427520201810837309176674245361798887059324066070528").unwrap();
+        let threshold =
+            U256::from_dec_str("9412783771427520201810837309176674245361798887059324066070528")
+                .unwrap();
         test_verify_template::<UPDATE_HEADERS_COUNT>(height, header, threshold);
     }
 }

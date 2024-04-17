@@ -1,7 +1,7 @@
+use num_bigint::BigUint;
+use plonky2x::prelude::{CircuitVariable, U256Variable, Variable};
 use std::ops::AddAssign;
 use std::ops::MulAssign;
-use num_bigint::BigUint;
-use plonky2x::prelude::{U256Variable, CircuitVariable, Variable};
 
 use crate::consts::*;
 
@@ -20,14 +20,14 @@ pub fn compute_threshold(exp: u32, mantissa: u64) -> BigUint {
     let mut threshold_bits = [false; 256];
 
     for i in 0..256 {
-        if (i as u32) < 256 - (exp * 8) && mantissa as u128 & (1u128 << (255u128 - (exp * 8) as u128 - i as u128)) != 0 {
+        if (i as u32) < 256 - (exp * 8)
+            && mantissa as u128 & (1u128 << (255u128 - (exp * 8) as u128 - i as u128)) != 0
+        {
             threshold_bits[i] = true;
         }
     }
 
-    BigUint::from_bytes_be(
-        &bits_to_bytes32(threshold_bits)
-    )
+    BigUint::from_bytes_be(&bits_to_bytes32(threshold_bits))
 }
 
 pub fn compute_work(threshold: BigUint) -> BigUint {
@@ -39,14 +39,18 @@ pub fn compute_work(threshold: BigUint) -> BigUint {
         acc.mul_assign(BigUint::new(vec![2]));
     }
     let numerator = acc;
-    
+
     numerator / denominator
 }
 
-pub fn adjust_threshold(threshold: BigUint, period_start_time: u32, period_end_time: u32) -> BigUint {
+pub fn adjust_threshold(
+    threshold: BigUint,
+    period_start_time: u32,
+    period_end_time: u32,
+) -> BigUint {
     let pow_target_timespan = 14 * 24 * 60 * 60;
     let pow_limit = BigUint::from_bytes_be(&[0xff; 28]);
-            
+
     let timespan = period_end_time - period_start_time;
     let timespan = if timespan < pow_target_timespan / 4 {
         pow_target_timespan / 4
@@ -76,9 +80,7 @@ pub fn u256_from_gen<F>(generator: F) -> U256Variable
 where
     F: FnMut(usize) -> Variable,
 {
-    let limbs: Vec<Variable> = (0..8)
-        .map(generator)
-        .collect::<Vec<_>>();
+    let limbs: Vec<Variable> = (0..8).map(generator).collect::<Vec<_>>();
 
     U256Variable::from_variables_unsafe(&limbs.as_slice())
 }

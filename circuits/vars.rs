@@ -1,8 +1,8 @@
-
 use crate::consts::HEADER_BYTES_LENGTH;
 
 use plonky2x::prelude::{
-    U256Variable, U32Variable, Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable, Variable, PlonkParameters, RichField
+    Bytes32Variable, BytesVariable, CircuitBuilder, CircuitVariable, PlonkParameters, RichField,
+    U256Variable, U32Variable, Variable,
 };
 
 pub type HeaderBytesVariable = BytesVariable<HEADER_BYTES_LENGTH>;
