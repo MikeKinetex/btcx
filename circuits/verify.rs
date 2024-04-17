@@ -18,7 +18,7 @@ pub trait BitcoinVerifyCircuit<L: PlonkParameters<D>, const D: usize> {
         prev_block_number: U64Variable,
         prev_header_hash: BlockHashVariable,
         threshold: ThresholdVariable,
-    ) -> ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>;
+    ) -> BlockHashVariable;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> BitcoinVerifyCircuit<L, D> for CircuitBuilder<L, D> {
@@ -27,7 +27,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinVerifyCircuit<L, D> for Circu
         prev_block_number: U64Variable,
         prev_header_hash: BlockHashVariable,
         threshold: ThresholdVariable,
-    ) -> ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT> {
+    ) -> BlockHashVariable {
         let mut input_stream = VariableStream::new();
         input_stream.write(&prev_block_number);
         input_stream.write(&prev_header_hash);
@@ -38,7 +38,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinVerifyCircuit<L, D> for Circu
         let update_headers_bytes = 
           output_stream.read::<ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>>(self);
 
-        self.validate_headers(&prev_block_number, &prev_header_hash, &threshold, &update_headers_bytes)
+        self.validate_headers(&prev_header_hash, &threshold, &update_headers_bytes)
     }
 }
 
@@ -73,12 +73,10 @@ impl<const UPDATE_HEADERS_COUNT: usize> Circuit for VerifyCircuit<UPDATE_HEADERS
         let prev_header_hash = builder.evm_read::<BlockHashVariable>();
         let threshold = builder.evm_read::<ThresholdVariable>();
 
-        let update_headers =
+        let last_header_hash =
             builder.verify::<UPDATE_HEADERS_COUNT>(prev_block_number, prev_header_hash, threshold);
 
-        for i in 0..update_headers.len() {
-          builder.evm_write(update_headers[i]);
-        }
+        builder.evm_write(last_header_hash);
     }
 
     fn register_generators<L: PlonkParameters<D>, const D: usize>(

@@ -1,6 +1,7 @@
 use std::ops::AddAssign;
 use std::ops::MulAssign;
 use num_bigint::BigUint;
+use plonky2x::prelude::{U256Variable, CircuitVariable, Variable};
 
 use crate::consts::*;
 
@@ -69,4 +70,15 @@ pub fn bits_to_bytes32(bits: [bool; 256]) -> [u8; 32] {
         bytes[i / 8] |= u8::from(bits[i]) << (7 - i % 8);
     }
     bytes
+}
+
+pub fn u256_from_gen<F>(generator: F) -> U256Variable
+where
+    F: FnMut(usize) -> Variable,
+{
+    let limbs: Vec<Variable> = (0..8)
+        .map(generator)
+        .collect::<Vec<_>>();
+
+    U256Variable::from_variables_unsafe(&limbs.as_slice())
 }

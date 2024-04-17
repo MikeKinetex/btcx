@@ -1,5 +1,8 @@
 use std::env;
 
+use bitcoincore_rpc::bitcoin::block::Header;
+use bitcoincore_rpc::bitcoin::hashes::Hash;
+use bitcoincore_rpc::bitcoin::BlockHash;
 use ethers::types::H256;
 
 use bitcoincore_rpc::{Client, Auth, RpcApi};
@@ -35,35 +38,55 @@ impl InputDataFetcher {
         }
     }
 
+    fn get_client(&mut self) -> Client {
+        Client::new(&self.url,
+            Auth::UserPass( self.user.to_string(),
+                            self.pass.to_string())).unwrap()
+    }
+
+    pub fn get_header_by_height(&mut self, block_number: u64) -> Header {
+        let rpc = self.get_client();
+        let hash = rpc.get_block_hash(block_number as u64).unwrap();
+        rpc.get_block_header(&hash).unwrap()
+    }
+
+    pub fn get_header_by_hash(&mut self, block_hash: H256) -> Header {
+        let rpc = self.get_client();
+        let hash = BlockHash::from_slice(block_hash.as_bytes()).unwrap();
+        rpc.get_block_header(&hash).unwrap()
+    }
+
+    pub fn to_bytes(&mut self, header: &Header) -> [u8; HEADER_BYTES_LENGTH] {
+        serialize(header).try_into().unwrap()
+    }
+
     pub fn get_update_headers_inputs<const UPDATE_HEADERS_COUNT: usize>(
         &mut self,
         prev_block_number: u64,
         prev_header_hash: H256,
     ) -> Vec<[u8; HEADER_BYTES_LENGTH]> {
-      let mut update_headers_bytes: Vec<[u8; HEADER_BYTES_LENGTH]> = Vec::new();
+        let rpc = self.get_client();
+            
+        let mut update_headers_bytes: Vec<[u8; HEADER_BYTES_LENGTH]> = Vec::new();
 
-      let rpc = Client::new(&self.url,
-                        Auth::UserPass(self.user.to_string(),
-                                       self.pass.to_string())).unwrap();
+        for i in 0..UPDATE_HEADERS_COUNT + 1 {
+            let hash = rpc.get_block_hash(prev_block_number + i as u64).unwrap();
 
-      for i in 0..UPDATE_HEADERS_COUNT + 1 {
-          let hash = rpc.get_block_hash(prev_block_number + i as u64).unwrap();
+            if i == 0 {
+                assert_eq!(
+                    prev_header_hash,
+                    H256::from_slice(serialize(&hash).as_slice())
+                );
+            } else {
+                let header = rpc.get_block_header(&hash).unwrap();
+                update_headers_bytes.push(
+                    serialize(&header).try_into().unwrap()
+                );
 
-          if i == 0 {
-              assert_eq!(
-                  prev_header_hash,
-                  H256::from_slice(serialize(&hash).as_slice())
-              );
-          } else {
-              let header = rpc.get_block_header(&hash).unwrap();
-              update_headers_bytes.push(
-                  serialize(&header).try_into().unwrap()
-              );
+                println!("header {}: {}", i, update_headers_bytes[i - 1].as_hex());
+            }
+        }
 
-              println!("header {}: {}", i, update_headers_bytes[i - 1].as_hex());
-          }
-      }
-
-      update_headers_bytes
+        update_headers_bytes
     }
 }
