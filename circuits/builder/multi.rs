@@ -1,163 +1,283 @@
 use plonky2x::prelude::{
-    ArrayVariable, CircuitBuilder, PlonkParameters
+    ArrayVariable, CircuitBuilder, PlonkParameters, U256Variable, U32Variable, U64Variable,
 };
 
 use crate::builder::header::BitcoinHeaderVerify;
-use crate::consts::*;
+use crate::utils::u256_from_gen;
 use crate::vars::*;
 
 pub trait BitcoinMultiVerify<L: PlonkParameters<D>, const D: usize> {
-    fn get_parent_hash(
-        &mut self,
-        header: &HeaderBytesVariable
-    ) -> BlockHashVariable;
-
     fn validate_headers<const UPDATE_HEADERS_COUNT: usize>(
         &mut self,
         prev_header_hash: &BlockHashVariable,
-        update_headers_bytes: &ArrayVariable<
-            HeaderBytesVariable,
-            UPDATE_HEADERS_COUNT
-        >
-    ) -> (ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>, WorkVariable);
+        threshold: &ThresholdVariable,
+        update_headers_bytes: &ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>,
+    ) -> BlockHashVariable;
+
+    fn validate_headers_with_retargeting<const UPDATE_HEADERS_COUNT: usize>(
+        &mut self,
+        prev_block_number: &U64Variable,
+        prev_header_hash: &BlockHashVariable,
+        period_start_hash: &BlockHashVariable,
+        curret_threshold: &ThresholdVariable,
+        next_threshold: &ThresholdVariable,
+        period_start_header_bytes: &HeaderBytesVariable,
+        period_end_header_bytes: &HeaderBytesVariable,
+        update_headers_bytes: &ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>,
+    ) -> (BlockHashVariable, ThresholdVariable);
+
+    fn adjust_threshold(
+        &mut self,
+        threshold: &ThresholdVariable,
+        period_start_timestamp: U32Variable,
+        period_end_timestamp: U32Variable,
+    ) -> U256Variable;
 }
 
 impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for CircuitBuilder<L, D> {
-    fn get_parent_hash(
-        &mut self,
-        header: &HeaderBytesVariable
-    ) -> BlockHashVariable {
-        header[HEADER_PARENT_HASH_INDEX..HEADER_PARENT_HASH_INDEX + 32].try_into().unwrap()
-    }
-
     fn validate_headers<const UPDATE_HEADERS_COUNT: usize>(
         &mut self,
         prev_header_hash: &BlockHashVariable,
-        update_headers_bytes: &ArrayVariable<
-            HeaderBytesVariable,
-            UPDATE_HEADERS_COUNT
-        >
-    ) -> (ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>, WorkVariable) {
-        if UPDATE_HEADERS_COUNT < 2 {
-            panic!("Not enough headers to form a chain");
-        }
-
+        threshold: &ThresholdVariable,
+        update_headers_bytes: &ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>,
+    ) -> BlockHashVariable {
         let mut hashes: Vec<BlockHashVariable> = Vec::new();
-        let mut work: Vec<WorkVariable> = Vec::new();
 
         for h in 0..UPDATE_HEADERS_COUNT {
             let header = self.validate_header(&update_headers_bytes[h]);
+
+            self.assert_is_equal(*threshold, header.threshold);
+            self.assert_is_equal(
+                if h == 0 {
+                    *prev_header_hash
+                } else {
+                    hashes[h - 1]
+                },
+                header.parent_hash,
+            );
+
             hashes.push(header.hash);
-
-            let parent_hash = self.get_parent_hash(&update_headers_bytes[h]);
-
-            if h == 0 {
-                self.assert_is_equal(*prev_header_hash, parent_hash);
-                work.push(header.work);
-            } else {
-                self.assert_is_equal(hashes[h - 1], parent_hash);
-                work.push(
-                    self.add(work[h - 1], header.work)
-                );
-            }
         }
 
-        let total_work = work[work.len() - 2];
+        hashes[UPDATE_HEADERS_COUNT - 1]
+    }
 
-        (ArrayVariable::from(hashes), total_work)
+    fn validate_headers_with_retargeting<const UPDATE_HEADERS_COUNT: usize>(
+        &mut self,
+        prev_block_number: &U64Variable,
+        prev_header_hash: &BlockHashVariable,
+        period_start_hash: &BlockHashVariable,
+        current_threshold: &ThresholdVariable,
+        next_threshold: &ThresholdVariable,
+        period_start_header_bytes: &HeaderBytesVariable,
+        period_end_header_bytes: &HeaderBytesVariable,
+        update_headers_bytes: &ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>,
+    ) -> (BlockHashVariable, ThresholdVariable) {
+        // constants
+        let _zero = self.zero::<U64Variable>();
+        let _one = self.one::<U64Variable>();
+        let retarget_window = self.constant::<U64Variable>(2016);
+
+        // calculate index of the first block in the next period after retargeting
+        let first_bn_in_seq = self.add(*prev_block_number, _one);
+        let m = self.rem(first_bn_in_seq, retarget_window);
+        let d = self.sub(retarget_window, m);
+        let start_period_block_index = self.rem(d, retarget_window);
+
+        // validate period start header
+        let period_start_header = self.validate_header(&period_start_header_bytes);
+        self.assert_is_equal(*period_start_hash, period_start_header.hash);
+        self.assert_is_equal(*current_threshold, period_start_header.threshold);
+
+        // validate period end header
+        let period_end_header = self.validate_header(&period_end_header_bytes);
+        let not_in_seq = self.is_equal(start_period_block_index, _zero);
+        let period_end_header_hash =
+            self.select(not_in_seq, *prev_header_hash, period_end_header.hash);
+        self.assert_is_equal(period_end_header_hash, period_end_header.hash);
+        self.assert_is_equal(*current_threshold, period_end_header.threshold);
+
+        // retarget threshold
+        let next_threshold_adjusted: U256Variable = self.adjust_threshold(
+            current_threshold,
+            period_start_header.timestamp,
+            period_end_header.timestamp,
+        );
+        // refine and validate next threshold
+        let next_threshold_refined = u256_from_gen(|i| {
+            let lhs = self.to_be_bits(next_threshold.limbs[i]);
+            let rhs = self.to_be_bits(next_threshold_adjusted.limbs[i]);
+            let lrs = (0..32)
+                .map(|j| self.and(lhs[j], rhs[j]))
+                .collect::<Vec<_>>();
+            U32Variable::from_be_bits(lrs.as_slice(), self).variable
+        });
+        self.assert_is_equal(*next_threshold, next_threshold_refined);
+
+        // validate headers
+        let mut hashes: Vec<BlockHashVariable> = Vec::new();
+
+        for i in 0..UPDATE_HEADERS_COUNT {
+            let index = self.constant::<U64Variable>(i as u64);
+            let is_in_prev_period = self.lt(index, start_period_block_index);
+
+            let header = self.validate_header(&update_headers_bytes[i]);
+
+            // validate threshold
+            let threshold = self.select(is_in_prev_period, *current_threshold, *next_threshold);
+            self.assert_is_equal(threshold, header.threshold);
+
+            // validate parent hash
+            self.assert_is_equal(
+                if i == 0 {
+                    *prev_header_hash
+                } else {
+                    hashes[i - 1]
+                },
+                header.parent_hash,
+            );
+
+            // validate period end header
+            let next_index = self.add(index, _one);
+            let is_last_in_prev_period = self.is_equal(next_index, start_period_block_index);
+            let hash = self.select(is_last_in_prev_period, period_end_header_hash, header.hash);
+
+            hashes.push(hash);
+        }
+
+        (hashes[UPDATE_HEADERS_COUNT - 1], next_threshold_refined)
+    }
+
+    fn adjust_threshold(
+        &mut self,
+        threshold: &ThresholdVariable,
+        period_start_timestamp: U32Variable,
+        period_end_timestamp: U32Variable,
+    ) -> U256Variable {
+        let pow_ts_min = self.constant::<U32Variable>(2016 * 600 / 4);
+        let pow_ts_max = self.constant::<U32Variable>(2016 * 600 * 4);
+
+        let pow_ts = u256_from_gen(|i| {
+            self.constant::<U32Variable>(if i == 0 { 2016 * 600 } else { 0 })
+                .variable
+        });
+
+        let pow_limit = u256_from_gen(|i| {
+            self.constant::<U32Variable>(if i == 7 { 0 } else { u32::MAX })
+                .variable
+        });
+
+        let timespan = self.sub(period_end_timestamp, period_start_timestamp);
+
+        let is_pow_ts_min = self.lt(timespan, pow_ts_min);
+        let is_pow_ts_max = self.gt(timespan, pow_ts_max);
+
+        let ts_if_min = self.select(is_pow_ts_min, pow_ts_min, timespan);
+        let ts_if_max = self.select(is_pow_ts_max, pow_ts_max, ts_if_min);
+
+        let timespan_adjusted = u256_from_gen(|i| {
+            if i == 0 {
+                ts_if_max.variable
+            } else {
+                self.zero::<U32Variable>().variable
+            }
+        });
+
+        let dividend = self.mul(*threshold, timespan_adjusted);
+
+        let new_target = self.div(dividend, pow_ts);
+        let is_lower_pow_limit = self.is_zero(new_target.limbs[7].variable);
+
+        self.select(is_lower_pow_limit, new_target, pow_limit)
     }
 }
 
-
 #[cfg(test)]
 mod test {
+    use ethers::types::U256;
     use std::env;
-    use ethers::types::H256;
+    use std::str::FromStr;
 
-    use plonky2x::prelude::{
-        bytes, bytes32,
-        DefaultBuilder, ArrayVariable
-    };
+    use num_bigint::BigUint;
+    use plonky2x::prelude::DefaultBuilder;
 
-    use crate::consts::*;
     use super::*;
+    use crate::utils::*;
 
-    #[test]
-    fn test_validate_headers() {
+    fn test_adjust_threshold_template(
+        period_threshold: &str,
+        period_start_ts: u32,
+        period_end_ts: u32,
+    ) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
         log::debug!("Defining circuit");
         let mut builder = DefaultBuilder::new();
-        
-        let prev_header_hash = builder.read::<BlockHashVariable>();
-        let update_headers_bytes = builder.read::<ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>>();
-        let (update_headers_hashes, update_total_work) = builder.validate_headers(&prev_header_hash, &update_headers_bytes);
-        
-        builder.write(update_headers_hashes);
-        builder.write(update_total_work);
+
+        let threshold = builder.read::<ThresholdVariable>();
+        let period_start_timestamp = builder.read::<U32Variable>();
+        let period_end_timestamp = builder.read::<U32Variable>();
+
+        let adjusted_threshold =
+            builder.adjust_threshold(&threshold, period_start_timestamp, period_end_timestamp);
+        builder.write(adjusted_threshold);
 
         log::debug!("Building circuit");
         let circuit = builder.build();
         log::debug!("Done building circuit");
 
+        let period_threshold_u256 = U256::from_dec_str(period_threshold).unwrap();
+
         let mut input = circuit.input();
-        input.write::<BlockHashVariable>(mock_prev_header_hash());
-        input.write::<ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>>(mock_headers_bytes());
-        
+        input.write::<ThresholdVariable>(period_threshold_u256);
+        input.write::<U32Variable>(period_start_ts);
+        input.write::<U32Variable>(period_end_ts);
+
         log::debug!("Generating circuit proof");
-        let (proof, mut output) = circuit.prove(&input);
-        log::debug!("Done verifying circuit proof");
+        let (proof, output) = circuit.prove(&input);
+        log::debug!("Done generating circuit proof");
 
         log::debug!("Verifying circuit proof");
         circuit.verify(&proof, &input, &output);
         log::debug!("Done verifying circuit proof");
 
-        let headers_hashes = output.read::<ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>>();
-        let total_work = output.read::<WorkVariable>();
+        let mut _output = output.clone();
+        let adjusted_threshold = _output.read::<ThresholdVariable>();
 
-        let expected_hashes = mock_expected_headers_hashes();
+        let expected_threshold = U256::from_little_endian(
+            adjust_threshold(
+                BigUint::from_str(period_threshold).unwrap(),
+                period_start_ts,
+                period_end_ts,
+            )
+            .to_bytes_le()
+            .as_slice(),
+        );
 
-        assert!(headers_hashes[0] == expected_hashes[0]);
-        assert!(headers_hashes[UPDATE_HEADERS_COUNT - 1] == expected_hashes[UPDATE_HEADERS_COUNT - 1]);
-        assert!(total_work.as_u64() == mock_expected_total_work());
+        log::debug!(
+            "Adjusted threshold: {:?} = {:?}",
+            adjusted_threshold,
+            expected_threshold
+        );
+        assert_eq!(adjusted_threshold, expected_threshold);
     }
 
-    fn mock_prev_header_hash() -> H256 {
-        bytes32!("0000000000000000000000000000000000000000000000000000000000000000")
+    #[test]
+    fn test_adjust_threshold_201600() {
+        test_adjust_threshold_template(
+            "8825801199382903987726989797449454220615414953524072026210304",
+            1349226660,
+            1350429295,
+        );
     }
 
-    fn mock_headers_bytes() -> Vec<[u8; HEADER_BYTES_LENGTH]> {
-        vec![
-            bytes!("0100000000000000000000000000000000000000000000000000000000000000000000003ba3edfd7a7b12b27ac72c3e67768f617fc81bc3888a51323a9fb8aa4b1e5e4a29ab5f49ffff001d1dac2b7c"),
-            bytes!("010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e36299"),
-            bytes!("010000004860eb18bf1b1620e37e9490fc8a427514416fd75159ab86688e9a8300000000d5fdcc541e25de1c7a5addedf24858b8bb665c9f36ef744ee42c316022c90f9bb0bc6649ffff001d08d2bd61"),
-            bytes!("01000000bddd99ccfda39da1b108ce1a5d70038d0a967bacb68b6b63065f626a0000000044f672226090d85db9a9f2fbfe5f0f9609b387af7be5b7fbb7a1767c831c9e995dbe6649ffff001d05e0ed6d"),
-            bytes!("010000004944469562ae1c2c74d9a535e00b6f3e40ffbad4f2fda3895501b582000000007a06ea98cd40ba2e3288262b28638cec5337c1456aaf5eedc8e9e5a20f062bdf8cc16649ffff001d2bfee0a9"),
-            bytes!("0100000085144a84488ea88d221c8bd6c059da090e88f8a2c99690ee55dbba4e00000000e11c48fecdd9e72510ca84f023370c9a38bf91ac5cae88019bee94d24528526344c36649ffff001d1d03e477"),
-            bytes!("01000000fc33f596f822a0a1951ffdbf2a897b095636ad871707bf5d3162729b00000000379dfb96a5ea8c81700ea4ac6b97ae9a9312b2d4301a29580e924ee6761a2520adc46649ffff001d189c4c97"),
-            bytes!("010000008d778fdc15a2d3fb76b7122a3b5582bea4f21f5a0c693537e7a03130000000003f674005103b42f984169c7d008370967e91920a6a5d64fd51282f75bc73a68af1c66649ffff001d39a59c86"),
-            bytes!("010000004494c8cf4154bdcc0720cd4a59d9c9b285e4b146d45f061d2b6c967100000000e3855ed886605b6d4a99d5fa2ef2e9b0b164e63df3c4136bebf2d0dac0f1f7a667c86649ffff001d1c4b5666"),
-            bytes!("01000000c60ddef1b7618ca2348a46e868afc26e3efc68226c78aa47f8488c4000000000c997a5e56e104102fa209c6a852dd90660a20b2d9c352423edce25857fcd37047fca6649ffff001d28404f53"),
-        ]
-    }
-
-    fn mock_expected_headers_hashes() -> Vec<H256> {
-        vec![
-            bytes32!("6fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000"),
-            bytes32!("4860eb18bf1b1620e37e9490fc8a427514416fd75159ab86688e9a8300000000"),
-            bytes32!("bddd99ccfda39da1b108ce1a5d70038d0a967bacb68b6b63065f626a00000000"),
-            bytes32!("4944469562ae1c2c74d9a535e00b6f3e40ffbad4f2fda3895501b58200000000"),
-            bytes32!("85144a84488ea88d221c8bd6c059da090e88f8a2c99690ee55dbba4e00000000"),
-            bytes32!("fc33f596f822a0a1951ffdbf2a897b095636ad871707bf5d3162729b00000000"),
-            bytes32!("8d778fdc15a2d3fb76b7122a3b5582bea4f21f5a0c693537e7a0313000000000"),
-            bytes32!("4494c8cf4154bdcc0720cd4a59d9c9b285e4b146d45f061d2b6c967100000000"),
-            bytes32!("c60ddef1b7618ca2348a46e868afc26e3efc68226c78aa47f8488c4000000000"),
-            bytes32!("0508085c47cc849eb80ea905cc7800a3be674ffc57263cf210c59d8d00000000"),
-        ]
-    }
-    
-    fn mock_expected_total_work() -> u64 {
-        38655295497
+    #[test]
+    fn test_adjust_threshold_powlimit() {
+        test_adjust_threshold_template(
+            "26959946667150639794667015087019630673637144422540572481103610249215",
+            0,
+            2419200, // 14 * 24 * 60 * 60 * 2
+        );
     }
 }

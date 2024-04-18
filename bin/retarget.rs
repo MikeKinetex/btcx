@@ -15,9 +15,9 @@
 //!
 //!
 use btcx::consts::UPDATE_HEADERS_COUNT;
-use btcx::verify::VerifyCircuit;
+use btcx::retarget::VerifyWithRetargetCircuit;
 use plonky2x::backend::function::Plonky2xFunction;
 
 fn main() {
-    VerifyCircuit::<UPDATE_HEADERS_COUNT>::entrypoint();
+    VerifyWithRetargetCircuit::<UPDATE_HEADERS_COUNT>::entrypoint();
 }
