@@ -19,7 +19,7 @@ pub trait BitcoinVerifyWithRetargetCircuit<L: PlonkParameters<D>, const D: usize
         prev_header_hash: BlockHashVariable,
         period_start_hash: BlockHashVariable,
         current_threshold: ThresholdVariable,
-    ) -> (BlockHashVariable, ThresholdVariable);
+    ) -> (ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>, ThresholdVariable);
 }
 
 impl<L: PlonkParameters<D>, const D: usize> BitcoinVerifyWithRetargetCircuit<L, D>
@@ -31,7 +31,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinVerifyWithRetargetCircuit<L, 
         prev_header_hash: BlockHashVariable,
         period_start_hash: BlockHashVariable,
         current_threshold: ThresholdVariable,
-    ) -> (BlockHashVariable, ThresholdVariable) {
+    ) -> (ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>, ThresholdVariable) {
         let mut input_stream = VariableStream::new();
         input_stream.write(&prev_block_number);
         input_stream.write(&prev_header_hash);
@@ -87,7 +87,7 @@ impl<const UPDATE_HEADERS_COUNT: usize, L: PlonkParameters<D>, const D: usize> H
             U256::from_little_endian(&next_period_start_header.target().to_le_bytes());
 
         let update_headers_bytes = input_fetcher
-            .get_update_headers_inputs::<UPDATE_HEADERS_COUNT>(prev_block_number, prev_header_hash);
+            .get_update_headers_inputs::<UPDATE_HEADERS_COUNT>(prev_header_hash);
 
         output_stream.write_value::<ThresholdVariable>(next_threshold);
         output_stream.write_value::<HeaderBytesVariable>(period_start_header_bytes);
@@ -110,15 +110,17 @@ impl<const UPDATE_HEADERS_COUNT: usize> Circuit
         let period_start_hash = builder.evm_read::<BlockHashVariable>();
         let current_threshold = builder.evm_read::<ThresholdVariable>();
 
-        let (last_header_hash, next_threshold) = builder
+        let (header_hashes, next_threshold) = builder
             .verify_with_retargeting::<UPDATE_HEADERS_COUNT>(
                 prev_block_number,
                 prev_header_hash,
                 period_start_hash,
                 current_threshold,
             );
-
-        builder.evm_write::<BlockHashVariable>(last_header_hash);
+        
+        header_hashes.as_vec().iter().for_each(|hash| {
+            builder.evm_write(*hash);
+        });
         builder.evm_write::<U256Variable>(next_threshold);
     }
 
@@ -192,10 +194,13 @@ mod tests {
 
         circuit.verify(&proof, &input, &output);
 
-        let last_header = output.evm_read::<BlockHashVariable>();
         let next_threshold = output.evm_read::<ThresholdVariable>();
-        log::debug!("last_header {:?}", last_header);
         log::debug!("next_threshold {:?}", next_threshold);
+
+        for i in 0..UPDATE_HEADERS_COUNT {
+            let hash = output.evm_read::<BlockHashVariable>();
+            log::debug!("header hash {}: {}", i, hash);
+        }
     }
 
     #[test]

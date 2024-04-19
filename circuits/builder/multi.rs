@@ -12,7 +12,7 @@ pub trait BitcoinMultiVerify<L: PlonkParameters<D>, const D: usize> {
         prev_header_hash: &BlockHashVariable,
         threshold: &ThresholdVariable,
         update_headers_bytes: &ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>,
-    ) -> BlockHashVariable;
+    ) -> ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>;
 
     fn validate_headers_with_retargeting<const UPDATE_HEADERS_COUNT: usize>(
         &mut self,
@@ -24,7 +24,7 @@ pub trait BitcoinMultiVerify<L: PlonkParameters<D>, const D: usize> {
         period_start_header_bytes: &HeaderBytesVariable,
         period_end_header_bytes: &HeaderBytesVariable,
         update_headers_bytes: &ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>,
-    ) -> (BlockHashVariable, ThresholdVariable);
+    ) -> (ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>, ThresholdVariable);
 
     fn adjust_threshold(
         &mut self,
@@ -40,7 +40,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
         prev_header_hash: &BlockHashVariable,
         threshold: &ThresholdVariable,
         update_headers_bytes: &ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>,
-    ) -> BlockHashVariable {
+    ) -> ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT> {
         let mut hashes: Vec<BlockHashVariable> = Vec::new();
 
         for h in 0..UPDATE_HEADERS_COUNT {
@@ -59,7 +59,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
             hashes.push(header.hash);
         }
 
-        hashes[UPDATE_HEADERS_COUNT - 1]
+        ArrayVariable::from(hashes)
     }
 
     fn validate_headers_with_retargeting<const UPDATE_HEADERS_COUNT: usize>(
@@ -72,7 +72,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
         period_start_header_bytes: &HeaderBytesVariable,
         period_end_header_bytes: &HeaderBytesVariable,
         update_headers_bytes: &ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>,
-    ) -> (BlockHashVariable, ThresholdVariable) {
+    ) -> (ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>, ThresholdVariable) {
         // constants
         let _zero = self.zero::<U64Variable>();
         let _one = self.one::<U64Variable>();
@@ -145,7 +145,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
             hashes.push(hash);
         }
 
-        (hashes[UPDATE_HEADERS_COUNT - 1], next_threshold_refined)
+        (ArrayVariable::from(hashes), next_threshold_refined)
     }
 
     fn adjust_threshold(
