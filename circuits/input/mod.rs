@@ -5,7 +5,7 @@ use bitcoincore_rpc::bitcoin::hashes::Hash;
 use bitcoincore_rpc::bitcoin::BlockHash;
 use ethers::types::H256;
 
-use bitcoincore_rpc::bitcoin::consensus::serialize;
+use bitcoincore_rpc::bitcoin::consensus::{deserialize, serialize};
 use bitcoincore_rpc::bitcoin::hex::DisplayHex;
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 
@@ -64,27 +64,26 @@ impl InputDataFetcher {
 
     pub fn get_update_headers_inputs<const UPDATE_HEADERS_COUNT: usize>(
         &mut self,
-        prev_block_number: u64,
         prev_header_hash: H256,
     ) -> Vec<[u8; HEADER_BYTES_LENGTH]> {
         let rpc = self.get_client();
 
+        let prev_header = rpc.get_block_header_info(
+            &deserialize::<BlockHash>(&prev_header_hash.as_bytes()).unwrap()
+        ).unwrap();
+
+        let start_height = prev_header.height as u64 + 1;
+        
         let mut update_headers_bytes: Vec<[u8; HEADER_BYTES_LENGTH]> = Vec::new();
 
-        for i in 0..UPDATE_HEADERS_COUNT + 1 {
-            let hash = rpc.get_block_hash(prev_block_number + i as u64).unwrap();
+        for i in 0..UPDATE_HEADERS_COUNT {
+            let hash = rpc.get_block_hash(start_height + i as u64).unwrap();
+            let header = serialize(
+                &rpc.get_block_header(&hash).unwrap()
+            ).try_into().unwrap();
+            update_headers_bytes.push(header);
 
-            if i == 0 {
-                assert_eq!(
-                    prev_header_hash,
-                    H256::from_slice(serialize(&hash).as_slice())
-                );
-            } else {
-                let header = rpc.get_block_header(&hash).unwrap();
-                update_headers_bytes.push(serialize(&header).try_into().unwrap());
-
-                println!("header {}: {}", i, update_headers_bytes[i - 1].as_hex());
-            }
+            log::debug!("header {}: {}", start_height + i as u64, header.as_hex());
         }
 
         update_headers_bytes
