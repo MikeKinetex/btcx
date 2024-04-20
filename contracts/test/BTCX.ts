@@ -44,12 +44,12 @@ describe('BTCX', function () {
 
   async function deployFixture_genesis() {
     const blockHeaders = await loadHeaders(0, 2015);
-    return deployFixture(0, blockHeaders[0].hash, '0x00000000FFFF0000000000000000000000000000000000000000000000000000');
+    return deployFixture(0, blockHeaders[0].hash, '0xFFFF0000000000000000000000000000000000000000000000000000');
   }
 
   async function deployFixture_201600() {
     const blockHeaders = await loadHeaders(201600, 211600);
-    return deployFixture(201600, blockHeaders[0].hash, '0x000000000000057e080000000000000000000000000000000000000000000000');
+    return deployFixture(201600, blockHeaders[0].hash, '0x057e080000000000000000000000000000000000000000000000');
   }
 
   it('Should submit block headers without retargeting (no fork)', async function () {
@@ -57,7 +57,6 @@ describe('BTCX', function () {
     const blockHeaders = await loadHeaders(0, 2015);
 
     await btcx.submit(
-      blockHeaders.slice(1, 501).map((h:Header) => '0x' + reverseEndianness(h.hash)),
       '0x' + reverseEndianness(blockHeaders[0].hash),
       '0x' + blockHeaders.slice(1, 501).map((h:Header) => h.header).join(''),
     );
@@ -73,13 +72,11 @@ describe('BTCX', function () {
     const blockHeaders = await loadHeaders(0, 2015);
 
     await btcx.submit(
-      blockHeaders.slice(1, 451).map((h:Header) => '0x' + reverseEndianness(h.hash)),
       '0x' + reverseEndianness(blockHeaders[0].hash),
       '0x' + blockHeaders.slice(1, 451).map((h:Header) => h.header).join(''),
     );
 
     await btcx.submit(
-      blockHeaders.slice(401, 501).map((h:Header) => '0x' + reverseEndianness(h.hash)),
       '0x' + reverseEndianness(blockHeaders[400].hash),
       '0x' + blockHeaders.slice(401, 501).map((h:Header) => h.header).join(''),
     );
@@ -95,13 +92,11 @@ describe('BTCX', function () {
     const blockHeaders = await loadHeaders(0, 2015);
 
     await btcx.submit(
-      blockHeaders.slice(1, 501).map((h:Header) => '0x' + reverseEndianness(h.hash)),
       '0x' + reverseEndianness(blockHeaders[0].hash),
       '0x' + blockHeaders.slice(1, 501).map((h:Header) => h.header).join(''),
     );
 
     expect(btcx.submit(
-      blockHeaders.slice(401, 451).map((h:Header) => '0x' + reverseEndianness(h.hash)),
       '0x' + reverseEndianness(blockHeaders[400].hash),
       '0x' + blockHeaders.slice(401, 451).map((h:Header) => h.header).join(''),
     )).to.be.revertedWithCustomError(btcx, 'ForksNotSupported()');
@@ -118,7 +113,6 @@ describe('BTCX', function () {
 
     for (let i = 0; i < 5; i++) {
       await btcx.submit(
-        blockHeaders.slice((i * 500) + 1, 1 + ((i + 1) * 500)).map((h:Header) => '0x' + reverseEndianness(h.hash)),
         '0x' + reverseEndianness(blockHeaders[i * 500].hash),
         '0x' + (i == 4 ? (blockHeaders[0].header + blockHeaders[2015].header) : '') + blockHeaders.slice((i * 500) + 1, 1 + ((i + 1) * 500)).map((h:Header) => h.header).join('')
       );
@@ -136,14 +130,12 @@ describe('BTCX', function () {
 
     for (let i = 0; i < 5; i++) {
       await btcx.submit(
-        blockHeaders.slice((i * 500) + 1, 1 + ((i + 1) * 500 - (i == 4 ? 100 : 0))).map((h:Header) => '0x' + reverseEndianness(h.hash)),
         '0x' + reverseEndianness(blockHeaders[i * 500].hash),
         '0x' + (i == 4 ? (blockHeaders[0].header + blockHeaders[2015].header) : '') + blockHeaders.slice((i * 500) + 1, 1 + ((i + 1) * 500 - (i == 4 ? 100 : 0))).map((h:Header) => h.header).join('')
       );
     }
 
     await btcx.submit(
-      blockHeaders.slice(2001, 2501).map((h:Header) => '0x' + reverseEndianness(h.hash)),
       '0x' + reverseEndianness(blockHeaders[2000].hash),
       '0x' + (blockHeaders[0].header + blockHeaders[2015].header) + blockHeaders.slice(2001, 2501).map((h:Header) => h.header).join('')
     );
@@ -160,14 +152,12 @@ describe('BTCX', function () {
 
     for (let i = 0; i < 5; i++) {
       await btcx.submit(
-        blockHeaders.slice((i * 500) + 1, 1 + ((i + 1) * 500)).map((h:Header) => '0x' + reverseEndianness(h.hash)),
         '0x' + reverseEndianness(blockHeaders[i * 500].hash),
         '0x' + (i == 4 ? (blockHeaders[0].header + blockHeaders[2015].header) : '') + blockHeaders.slice((i * 500) + 1, 1 + ((i + 1) * 500)).map((h:Header) => h.header).join('')
       );
     }
 
     expect(btcx.submit(
-      blockHeaders.slice(2001, 2451).map((h:Header) => '0x' + reverseEndianness(h.hash)),
       '0x' + reverseEndianness(blockHeaders[2000].hash),
       '0x' + (blockHeaders[0].header + blockHeaders[2015].header) + blockHeaders.slice(2001, 2451).map((h:Header) => h.header).join('')
     )).to.be.revertedWithCustomError(btcx, 'ForksNotSupported()');

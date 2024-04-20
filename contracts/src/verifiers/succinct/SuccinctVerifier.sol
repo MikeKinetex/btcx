@@ -5,11 +5,10 @@ import {IVerifier} from "../../interfaces/IVerifier.sol";
 
 contract SuccinctVerifier is IVerifier {
     function verify(
-        uint64 /* ancestorBlockHeight */,
         bytes32 /* ancestorBlockHash */,
         uint256 /* currentTarget */,
         bytes calldata /* proof */
-    ) external pure returns (bytes32) {
+    ) external pure returns (bytes32[] memory) {
         revert BlockVerificationNotSupported();
     }
 
@@ -19,7 +18,7 @@ contract SuccinctVerifier is IVerifier {
         bytes32 /* startPeriodHash */,
         uint256 /* target */,
         bytes calldata /* proof */
-    ) external pure returns (uint256[] memory, bytes32) {
+    ) external pure returns (bytes32[] memory, uint256) {
         revert RetargetingNotSupported();
     }
 

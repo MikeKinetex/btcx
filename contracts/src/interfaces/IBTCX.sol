@@ -41,12 +41,11 @@ interface IBTCX {
     /// @return True if the block is confirmed, false otherwise.
     function blockConfirmed(bytes32 blockHash) external view returns (bool);
 
-    /// @notice Submits a series of block hashes for verification and potentially extends the blockchain.
+    /// @notice Submits a series of block headers for verification and potentially extends the blockchain.
     /// @dev This function may trigger a retargeting process depending on the blocks' heights and the current blockchain state.
-    /// @param blockHashes An array of new block hashes to submit.
     /// @param parentBlockHash The hash of the parent block to the first block in the `blockHashes` array.
-    /// @param proof The proof data required for verification of the block hashes.
-    function submit(bytes32[] calldata blockHashes, bytes32 parentBlockHash, bytes calldata proof) external;
+    /// @param headers The headers data required for verification of the block hashes.
+    function submit(bytes32 parentBlockHash, bytes calldata headers) external;
 
     /// @notice Submits a Utreexo proof for verification against a specified block hash.
     /// @dev This function updates the Utreexo state for a block, verifying the inclusion or exclusion of UTXOs.

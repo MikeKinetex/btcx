@@ -20,17 +20,15 @@ interface IVerifier {
 
     /**
      * @dev Verifies a series of Bitcoin block headers against a given proof.
-     * @param ancestorBlockHeight The height of the ancestor block.
      * @param ancestorBlockHash The hash of the ancestor block.
      * @param currentTarget The current target.
-     * @param proof The proof data.
+     * @param headers The headers sequence.
      */
     function verify(
-        uint64 ancestorBlockHeight,
         bytes32 ancestorBlockHash,
         uint256 currentTarget,
-        bytes calldata proof
-    ) external view returns (bytes32);
+        bytes calldata headers
+    ) external pure returns (bytes32[] memory);
 
     /**
      * @dev Verifies a series of Bitcoin block headers with retargeting against a given proof.
@@ -38,7 +36,7 @@ interface IVerifier {
      * @param ancestorBlockHash The hash of the ancestor block.
      * @param startPeriodBlockHash The hash of the start period block.
      * @param currentTarget The current target difficulty.
-     * @param proof The proof data.
+     * @param headers The headers sequence.
      * @return The array of adjusted targets after retargeting.
      */
     function verifyWithRetargeting(
@@ -46,8 +44,8 @@ interface IVerifier {
         bytes32 ancestorBlockHash,
         bytes32 startPeriodBlockHash,
         uint256 currentTarget,
-        bytes calldata proof
-    ) external view returns (uint256[] memory, bytes32);
+        bytes calldata headers
+    ) external pure returns (bytes32[] memory, uint256);
 
     /**
      * @dev Updates and verifies Utreexo against a given proof.

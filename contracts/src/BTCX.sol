@@ -64,29 +64,25 @@ contract BTCX is IBTCX {
         return blocks[blockHash] + MIN_CONFIRMATIONS <= chainTip;
     }
 
-    function submit(bytes32[] calldata blockHashes, bytes32 parentBlockHash, bytes calldata proof) external {
+    function submit(bytes32 parentBlockHash, bytes calldata headers) external {
         _validateByHash(parentBlockHash);
 
         uint64 parentBlockHeight = blocks[parentBlockHash];
         uint256 currentTarget = retargets[parentBlockHeight / 2016];
         uint64 startPeriodBlockHeight = parentBlockHeight - (parentBlockHeight % 2016);
         uint64 endPeriodBlockHeight = startPeriodBlockHeight + 2015;
+        uint256 nHeaders = headers.length / 80;
 
-        if (parentBlockHeight + blockHashes.length > endPeriodBlockHeight) {
+        if (parentBlockHeight + nHeaders > endPeriodBlockHeight) {
             // verify blocks with retargeting
             bytes32 startPeriodBlockHash = hashes[startPeriodBlockHeight];
-            (uint256[] memory newRetargets, bytes32 endBlockHash) = VERIFIER.verifyWithRetargeting(
+            (bytes32[] memory blockHashes, uint256 nextTarget) = VERIFIER.verifyWithRetargeting(
                 parentBlockHeight,
                 parentBlockHash,
                 startPeriodBlockHash,
                 currentTarget,
-                proof
+                headers
             );
-
-            // check end block hash
-            if (blockHashes[blockHashes.length - 1] != endBlockHash) {
-                revert InvalidInput();
-            }
 
             // calculate chain work (should be optimized)
             uint256 chainWork_ = chainWork;
@@ -101,7 +97,7 @@ contract BTCX is IBTCX {
             for (uint64 i = 0; i < blockHashes.length; i++) {
                 if (heightIndex > endPeriodBlockHeight) {
                     // if the block height is beyond the current retargeting period, calculate work with new target
-                    chainWork_ += _calculateChainWork(newRetargets[newEpochIndex]);
+                    chainWork_ += _calculateChainWork(nextTarget);
                     if (heightIndex % 2016 == 2015) newEpochIndex++;
                 } else {
                     chainWork_ += _calculateChainWork(currentTarget);
@@ -115,7 +111,7 @@ contract BTCX is IBTCX {
             // store new chainwork
             chainWork = chainWork_;
 
-            // prune chain and update retargets if needed
+            // prune chain if needed
             if (parentBlockHeight != chainTip) {
                 for (uint64 i = chainTip; i > parentBlockHeight; i--) {
                     delete hashes[i];
@@ -124,20 +120,20 @@ contract BTCX is IBTCX {
                     }
                 }
             }
-            for (uint64 i = 0; i < newRetargets.length; i++) {
-                retargets[startPeriodBlockHeight / 2016 + 1 + i] = newRetargets[i];
+
+            // update retargets
+            if (nextTarget > 0) {
+                retargets[startPeriodBlockHeight / 2016 + 1] = nextTarget;
             }
+
+            // update the chain with new blocks
+            _updateChainWithNewBlocks(parentBlockHeight, blockHashes);
         } else {
             // ignore forks with less work done
-            if (parentBlockHeight + blockHashes.length <= chainTip) revert ForksNotSupported();
+            if (parentBlockHeight + nHeaders <= chainTip) revert ForksNotSupported();
 
             // verify blocks without retargeting
-            bytes32 endBlockHash = VERIFIER.verify(parentBlockHeight, parentBlockHash, currentTarget, proof);
-
-            // check end block hash
-            if (blockHashes[blockHashes.length - 1] != endBlockHash) {
-                revert InvalidInput();
-            }
+            bytes32[] memory blockHashes = VERIFIER.verify(parentBlockHash, currentTarget, headers);
 
             // calculate chainWork
             chainWork +=
@@ -147,10 +143,10 @@ contract BTCX is IBTCX {
                         ? blockHashes.length
                         : (blockHashes.length + parentBlockHeight - chainTip)
                 );
-        }
 
-        // update the chain with new blocks
-        _updateChainWithNewBlocks(parentBlockHeight, blockHashes);
+            // update the chain with new blocks
+            _updateChainWithNewBlocks(parentBlockHeight, blockHashes);
+        }
     }
 
     function submitUtreexo(bytes32 blockHash, bytes calldata proof) external {
@@ -175,7 +171,7 @@ contract BTCX is IBTCX {
         if (blocks[blockHash] == 0 && blockHash != GENESIS_BLOCK_HASH) revert BlockNotFound();
     }
 
-    function _updateChainWithNewBlocks(uint64 parentBlockHeight, bytes32[] calldata blockHashes) internal {
+    function _updateChainWithNewBlocks(uint64 parentBlockHeight, bytes32[] memory blockHashes) internal {
         uint64 chainTip_ = parentBlockHeight;
 
         for (uint256 i = 0; i < blockHashes.length; i++) {
