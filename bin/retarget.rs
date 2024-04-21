@@ -14,10 +14,25 @@
 //!
 //!
 //!
-use btcx::consts::UPDATE_HEADERS_COUNT;
 use btcx::retarget::VerifyWithRetargetCircuit;
 use plonky2x::backend::function::Plonky2xFunction;
 
 fn main() {
-    VerifyWithRetargetCircuit::<UPDATE_HEADERS_COUNT>::entrypoint();
+    let headers_count = std::env::var("UPDATE_HEADERS_COUNT")
+        .unwrap()
+        .parse()
+        .unwrap();
+
+    match headers_count {
+        10 => VerifyWithRetargetCircuit::<10>::entrypoint(),
+        18 => VerifyWithRetargetCircuit::<18>::entrypoint(),
+        36 => VerifyWithRetargetCircuit::<36>::entrypoint(),
+        72 => VerifyWithRetargetCircuit::<72>::entrypoint(),
+        144 => VerifyWithRetargetCircuit::<144>::entrypoint(),
+        288 => VerifyWithRetargetCircuit::<288>::entrypoint(),
+        576 => VerifyWithRetargetCircuit::<576>::entrypoint(),
+        1008 => VerifyWithRetargetCircuit::<1008>::entrypoint(),
+        2016 => VerifyWithRetargetCircuit::<2016>::entrypoint(),
+        _ => panic!("Unsupported headers count"),
+    }
 }
