@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {IVerifier} from "../../interfaces/IVerifier.sol";
+import {IBlockVerifier} from "../interfaces/IBlockVerifier.sol";
 import {HeadersInput} from "./lib/HeadersInput.sol";
 import {BitcoinHeader} from "./lib/BitcoinHeader.sol";
 
-contract EVMVerifier is IVerifier {
+contract EVMVerifier is IBlockVerifier {
     using BitcoinHeader for bytes;
     using HeadersInput for bytes;
 
@@ -14,8 +14,10 @@ contract EVMVerifier is IVerifier {
         uint256 currentTarget,
         bytes calldata headers
     ) external pure returns (bytes32[] memory) {
+        if (headers.length % 80 != 0) revert InvalidHeadersInput();
+
         uint256 nHeaders = headers.size();
-        if (nHeaders < 1 || nHeaders > 2016) revert InvalidProofLength();
+        if (nHeaders < 1 || nHeaders > 2016) revert InvalidHeadersInput();
 
         bytes32[] memory blockHashes = new bytes32[](nHeaders);
 
@@ -37,12 +39,14 @@ contract EVMVerifier is IVerifier {
         uint256 currentTarget,
         bytes calldata headers
     ) external pure returns (bytes32[] memory, uint256) {
+        if (headers.length % 80 != 0) revert InvalidHeadersInput();
+
         uint256 hsz = headers.size();
-        if (hsz <= 2) revert InvalidProofLength();
+        if (hsz <= 2) revert InvalidHeadersInput();
 
         uint256 nHeaders = hsz - 2;
         uint256 shift = (2016 - ((ancestorBlockHeight + 1) % 2016)) % 2016;
-        if (shift < nHeaders && nHeaders - shift > 2016) revert InvalidProofLength();
+        if (shift < nHeaders && nHeaders - shift > 2016) revert InvalidHeadersInput();
 
         bytes32[] memory blockHashes = new bytes32[](nHeaders);
 
@@ -76,14 +80,6 @@ contract EVMVerifier is IVerifier {
         }
 
         return (blockHashes, _nBitsToTarget(headers.get(shift + 2).nBits()) & nextTarget);
-    }
-
-    function verifyUtreexo(
-        bytes32 /* blockHash */,
-        bytes32 /* parentUtreexo */,
-        bytes calldata /* proof */
-    ) external pure returns (bytes32[] memory) {
-        revert UtreexoNotSupported();
     }
 
     function _verifyHeader(

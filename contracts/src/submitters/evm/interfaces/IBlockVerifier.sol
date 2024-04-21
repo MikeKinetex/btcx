@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-interface IVerifier {
+interface IBlockVerifier {
     error BlockVerificationNotSupported();
     error RetargetingNotSupported();
-    error UtreexoNotSupported();
 
-    error InvalidProofLength();
+    error InvalidHeadersInput();
 
     error BlockHashMismatch();
     error InvalidParentHash();
@@ -46,17 +45,4 @@ interface IVerifier {
         uint256 currentTarget,
         bytes calldata headers
     ) external pure returns (bytes32[] memory, uint256);
-
-    /**
-     * @dev Updates and verifies Utreexo against a given proof.
-     * @param blockHash The hash of the block for which Utreexo needs to be updated and verified.
-     * @param parentUtreexo The commitment of previous Utreexo roots.
-     * @param proof The Utreexo proof data.
-     * @return The updated Utreexo roots after verification.
-     */
-    function verifyUtreexo(
-        bytes32 blockHash,
-        bytes32 parentUtreexo,
-        bytes calldata proof
-    ) external view returns (bytes32[] memory);
 }

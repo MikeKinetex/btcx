@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @title IBTCX Interface
-/// @dev Interface for the BTCX contract which handles Bitcoin block header verification and chain management within EVM-like networks.
-interface IBTCX {
+/// @title ILightClient Interface
+/// @dev Interface for the BTCX Light Client contract which handles Bitcoin block header verification and chain management within EVM-like networks.
+interface ILightClient {
     error InvalidGenesisBlockHeight();
-    error InvalidInput();
+    error InvalidSubmitter();
     error BlockNotFound();
-    error UtreexoNotFound();
     error ForksNotSupported();
 
     /// @notice Event emitted when a new block is added as the new tip of the blockchain.
@@ -41,15 +40,22 @@ interface IBTCX {
     /// @return True if the block is confirmed, false otherwise.
     function blockConfirmed(bytes32 blockHash) external view returns (bool);
 
-    /// @notice Submits a series of block headers for verification and potentially extends the blockchain.
-    /// @dev This function may trigger a retargeting process depending on the blocks' heights and the current blockchain state.
-    /// @param parentBlockHash The hash of the parent block to the first block in the `blockHashes` array.
-    /// @param headers The headers data required for verification of the block hashes.
-    function submit(bytes32 parentBlockHash, bytes calldata headers) external;
+    /// @notice Retrieves the target difficulty for a given block height.
+    /// @dev Reverts if the block at the given height is not found.
+    /// @param height The height of the block to retrieve the target for.
+    /// @return The target difficulty for the block at the specified height.
+    function targetByHeight(uint64 height) external view returns (uint256);
 
-    /// @notice Submits a Utreexo proof for verification against a specified block hash.
-    /// @dev This function updates the Utreexo state for a block, verifying the inclusion or exclusion of UTXOs.
-    /// @param blockHash The hash of the block for which the Utreexo proof is submitted.
-    /// @param proof The Utreexo proof data required for verification.
-    function submitUtreexo(bytes32 blockHash, bytes calldata proof) external;
+    /// @notice Submits a new block sequence to the chain.
+    /// @dev Applies the new blocks to the chain and updates the tip.
+    /// @param parentBlockHash The hash of the parent block.
+    /// @param blockHashes The hashes of the blocks to submit.
+    function submit(bytes32 parentBlockHash, bytes32[] memory blockHashes) external;
+
+    /// @notice Submits a block sequence to the chain for a new period.
+    /// @dev Applies the new blocks to the chain with retargeting and updates the tip.
+    /// @param parentBlockHash The hash of the parent block.
+    /// @param blockHashes The hashes of the blocks to submit.
+    /// @param nextTarget The retargeted difficulty for the next block period.
+    function submit(bytes32 parentBlockHash, bytes32[] memory blockHashes, uint256 nextTarget) external;
 }
