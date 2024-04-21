@@ -7,6 +7,13 @@
           "baseDir": ".",
           "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin verify --release build && mv ./target/release/verify ./build/verify",
           "proveCommand": "RUST_LOG=info ./build/verify prove input.json"
-      }
+      },
+      {
+          "name": "retarget",
+          "framework": "plonky2x",
+          "baseDir": ".",
+          "buildCommand": "mkdir -p build && RUST_LOG=debug cargo run --bin retarget --release build && mv ./target/release/retarget ./build/retarget",
+          "proveCommand": "RUST_LOG=info ./build/retarget prove input.json"
+    }
   ]
 }
