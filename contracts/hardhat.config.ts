@@ -7,6 +7,7 @@ import './scripts/tasks';
 
 const MAINNET_RPC_URL = process.env.MAINNET_RPC_URL || '';
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || '';
+const GNOSIS_RPC_URL = process.env.GNOSIS_RPC_URL || '';
 
 const MAINNET_EXPLORER_API_KEY = process.env.MAINNET_EXPLORER_API_KEY || '';
 
@@ -30,6 +31,10 @@ const config: HardhatUserConfig = {
     },
     sepolia: {
       url: SEPOLIA_RPC_URL,
+      accounts: [DEPLOYER_PRIVATE_KEY],
+    },
+    gnosis: {
+      url: GNOSIS_RPC_URL,
       accounts: [DEPLOYER_PRIVATE_KEY],
     },
   },
