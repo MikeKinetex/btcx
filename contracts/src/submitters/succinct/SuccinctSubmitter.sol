@@ -6,10 +6,9 @@ import {ISuccinctGateway} from "./interfaces/ISuccinctGateway.sol";
 import {OutputReader} from "./lib/OutputReader.sol";
 
 contract SuccinctSubmitter {
-    error InvalidGatewayCall(address caller);
     error NoFunctionId(uint256 nHeaders, bool needRetarget);
 
-    struct VerifyFunction {
+    struct ZKFunction {
         bytes32 functionId;
         uint64 nHeaders;
     }
@@ -23,8 +22,8 @@ contract SuccinctSubmitter {
     constructor(
         address lightClient,
         address gateway,
-        VerifyFunction[] memory _verifyFunctions,
-        VerifyFunction[] memory _retargetFunctions
+        ZKFunction[] memory _verifyFunctions,
+        ZKFunction[] memory _retargetFunctions
     ) {
         LIGHT_CLIENT = ILightClient(lightClient);
         SUCCINCT_GATEWAY = ISuccinctGateway(gateway);
@@ -38,6 +37,35 @@ contract SuccinctSubmitter {
     }
 
     function request(bytes32 parentBlockHash, uint64 nHeaders) external payable {
+        (bytes32 functionId, bytes memory input) = _constructZKCall(parentBlockHash, nHeaders);
+        SUCCINCT_GATEWAY.requestCall{value: msg.value}(
+            functionId,
+            input,
+            address(this),
+            abi.encodeWithSelector(this.submit.selector, parentBlockHash, nHeaders),
+            300000
+        );
+    }
+
+    function submit(bytes32 parentBlockHash, uint64 nHeaders) external {
+        (bytes32 functionId, bytes memory input) = _constructZKCall(parentBlockHash, nHeaders);
+
+        bytes memory output = SUCCINCT_GATEWAY.verifiedCall(functionId, input);
+
+        bytes32[] memory blockHashes = new bytes32[](nHeaders);
+        for (uint256 i = 0; i < nHeaders; i++) {
+            blockHashes[i] = bytes32(OutputReader.readUint256(output, i * 32));
+        }
+
+        if (functionId == retargetFunctionIds[nHeaders]) {
+            uint256 nextTarget = OutputReader.readUint256(output, nHeaders * 32);
+            LIGHT_CLIENT.submit(parentBlockHash, blockHashes, nextTarget);
+        } else {
+            LIGHT_CLIENT.submit(parentBlockHash, blockHashes);
+        }
+    }
+
+    function _constructZKCall(bytes32 parentBlockHash, uint64 nHeaders) internal view returns (bytes32, bytes memory) {
         uint64 parentBlockHeight = LIGHT_CLIENT.blockByHash(parentBlockHash);
         uint256 currentTarget = LIGHT_CLIENT.targetByHeight(parentBlockHeight);
 
@@ -48,38 +76,13 @@ contract SuccinctSubmitter {
 
         bool needRetarget = parentBlockHeight + nHeaders > endPeriodBlockHeight;
 
+        bytes32 functionId = needRetarget ? retargetFunctionIds[nHeaders] : verifyFunctionIds[nHeaders];
+        if (functionId == 0) revert NoFunctionId(nHeaders, needRetarget);
+
         bytes memory input = needRetarget
             ? abi.encodePacked(parentBlockHeight, parentBlockHash, startPeriodBlockHash, currentTarget)
             : abi.encodePacked(parentBlockHash, currentTarget);
 
-        bytes32 functionId = needRetarget ? retargetFunctionIds[nHeaders] : verifyFunctionIds[nHeaders];
-        if (functionId == 0) revert NoFunctionId(nHeaders, needRetarget);
-
-        SUCCINCT_GATEWAY.requestCallback{value: msg.value}(
-            functionId,
-            input,
-            abi.encode(parentBlockHash, nHeaders, needRetarget),
-            this.submit.selector,
-            300000
-        );
-    }
-
-    function submit(bytes memory output, bytes memory context) external {
-        if (msg.sender != address(SUCCINCT_GATEWAY)) revert InvalidGatewayCall(msg.sender);
-        if (!SUCCINCT_GATEWAY.isCallback()) revert InvalidGatewayCall(msg.sender);
-
-        (bytes32 parentBlockHash, uint64 nHeaders, bool needRetarget) = abi.decode(context, (bytes32, uint64, bool));
-
-        bytes32[] memory blockHashes = new bytes32[](nHeaders);
-        for (uint256 i = 0; i < nHeaders; i++) {
-            blockHashes[i] = bytes32(OutputReader.readUint256(output, i * 32));
-        }
-
-        if (needRetarget) {
-            uint256 nextTarget = OutputReader.readUint256(output, nHeaders * 32);
-            LIGHT_CLIENT.submit(parentBlockHash, blockHashes, nextTarget);
-        } else {
-            LIGHT_CLIENT.submit(parentBlockHash, blockHashes);
-        }
+        return (functionId, input);
     }
 }
