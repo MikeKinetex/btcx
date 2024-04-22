@@ -169,7 +169,7 @@ mod tests {
         prev_header_hash: H256,
         period_start_hash: H256,
         current_threshold: U256,
-    ) {
+    ) -> (Vec<H256>, U256) {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
@@ -194,13 +194,17 @@ mod tests {
 
         circuit.verify(&proof, &input, &output);
 
-        let next_threshold = output.evm_read::<ThresholdVariable>();
-        log::debug!("next_threshold {:?}", next_threshold);
-
+        let mut hashes = Vec::new();
         for i in 0..UPDATE_HEADERS_COUNT {
             let hash = output.evm_read::<BlockHashVariable>();
             log::debug!("header hash {}: {}", i, hash);
+            hashes.push(hash);
         }
+
+        let next_threshold = output.evm_read::<ThresholdVariable>();
+        log::debug!("next_threshold {:?}", next_threshold);
+
+        return (hashes, next_threshold);
     }
 
     #[test]
@@ -214,11 +218,18 @@ mod tests {
         let current_threshold =
             U256::from_dec_str("8825801199382903987726989797449454220615414953524072026210304")
                 .unwrap();
-        test_verify_with_retargeting_template::<UPDATE_HEADERS_COUNT>(
+        let (mut hashes, next_threshold) = test_verify_with_retargeting_template::<UPDATE_HEADERS_COUNT>(
             prev_block_number,
             prev_header_hash,
             period_start_hash,
             current_threshold,
+        );
+        assert_eq!(hashes.len(), UPDATE_HEADERS_COUNT);
+        assert_eq!(hashes.pop().unwrap(), bytes32!("17420ce85462a303d8e0d77da1fc3513f6d97f3987533da16803000000000000"));
+        assert_eq!(
+            next_threshold,
+            U256::from_dec_str("8774971387283464186072960143252932765613148614319486309236736")
+                .unwrap()
         );
     }
 
@@ -234,15 +245,23 @@ mod tests {
             "26959535291011309493156476344723991336010898738574164086137773096960",
         )
         .unwrap();
-        test_verify_with_retargeting_template::<UPDATE_HEADERS_COUNT>(
+        let (mut hashes, next_threshold) = test_verify_with_retargeting_template::<UPDATE_HEADERS_COUNT>(
             prev_block_number,
             prev_header_hash,
             period_start_hash,
             current_threshold,
         );
+        assert_eq!(hashes.len(), UPDATE_HEADERS_COUNT);
+        assert_eq!(hashes.pop().unwrap(), bytes32!("d3d69a0d275b623bcca42606b012a37e506a54d9b7d9b0796c5e45cc00000000"));
+        assert_eq!(
+            next_threshold,
+            U256::from_dec_str("26959535291011309493156476344723991336010898738574164086137773096960")
+                .unwrap()
+        );
     }
 
     #[test]
+    #[should_panic]
     fn test_verify_with_retargeting_2016_10() {
         const UPDATE_HEADERS_COUNT: usize = 10;
         let prev_block_number = 2016;
