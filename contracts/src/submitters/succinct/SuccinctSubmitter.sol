@@ -43,7 +43,7 @@ contract SuccinctSubmitter {
             input,
             address(this),
             abi.encodeWithSelector(this.submit.selector, parentBlockHash, nHeaders),
-            300000
+            10000000
         );
     }
 
