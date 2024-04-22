@@ -3,6 +3,7 @@ import '@nomicfoundation/hardhat-toolbox';
 import '@nomiclabs/hardhat-solhint';
 import 'hardhat-contract-sizer';
 import 'dotenv/config';
+import './scripts/tasks';
 
 const MAINNET_RPC_URL = process.env.MAINNET_RPC_URL || '';
 const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || '';
