@@ -74,6 +74,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
         update_headers_bytes: &ArrayVariable<HeaderBytesVariable, UPDATE_HEADERS_COUNT>,
     ) -> (ArrayVariable<BlockHashVariable, UPDATE_HEADERS_COUNT>, ThresholdVariable) {
         // constants
+        let _true = self._true();
         let _zero = self.zero::<U64Variable>();
         let _one = self.one::<U64Variable>();
         let retarget_window = self.constant::<U64Variable>(2016);
@@ -82,16 +83,24 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
         let first_bn_in_seq = self.add(*prev_block_number, _one);
         let m = self.rem(first_bn_in_seq, retarget_window);
         let d = self.sub(retarget_window, m);
-        let start_period_block_index = self.rem(d, retarget_window);
+        let new_period_start_header_index = self.rem(d, retarget_window);
+
+        // check that correct number of headers is provided (including retargeted headers)
+        let num_headers = self.constant::<U64Variable>(UPDATE_HEADERS_COUNT as u64);
+        let max_num_headers = self.add(new_period_start_header_index, retarget_window);
+        let is_within_min_limit = self.lt(new_period_start_header_index, num_headers);
+        self.assert_is_equal(is_within_min_limit, _true);
+        let is_within_max_limit = self.lte(num_headers, max_num_headers);
+        self.assert_is_equal(is_within_max_limit, _true);
 
         // validate period start header
         let period_start_header = self.validate_header(&period_start_header_bytes);
         self.assert_is_equal(*period_start_hash, period_start_header.hash);
         self.assert_is_equal(*current_threshold, period_start_header.threshold);
 
-        // validate period end header
+        // validate period end header (in case if it's not in the sequence)
         let period_end_header = self.validate_header(&period_end_header_bytes);
-        let not_in_seq = self.is_equal(start_period_block_index, _zero);
+        let not_in_seq = self.is_equal(new_period_start_header_index, _zero);
         let period_end_header_hash =
             self.select(not_in_seq, *prev_header_hash, period_end_header.hash);
         self.assert_is_equal(period_end_header_hash, period_end_header.hash);
@@ -103,6 +112,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
             period_start_header.timestamp,
             period_end_header.timestamp,
         );
+
         // refine and validate next threshold
         let next_threshold_refined = u256_from_gen(|i| {
             let lhs = self.to_be_bits(next_threshold.limbs[i]);
@@ -119,7 +129,7 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
 
         for i in 0..UPDATE_HEADERS_COUNT {
             let index = self.constant::<U64Variable>(i as u64);
-            let is_in_prev_period = self.lt(index, start_period_block_index);
+            let is_in_prev_period = self.lt(index, new_period_start_header_index);
 
             let header = self.validate_header(&update_headers_bytes[i]);
 
@@ -137,9 +147,9 @@ impl<L: PlonkParameters<D>, const D: usize> BitcoinMultiVerify<L, D> for Circuit
                 header.parent_hash,
             );
 
-            // validate period end header
+            // validate period end header (in case if it's in the sequence)
             let next_index = self.add(index, _one);
-            let is_last_in_prev_period = self.is_equal(next_index, start_period_block_index);
+            let is_last_in_prev_period = self.is_equal(next_index, new_period_start_header_index);
             let hash = self.select(is_last_in_prev_period, period_end_header_hash, header.hash);
 
             hashes.push(hash);
