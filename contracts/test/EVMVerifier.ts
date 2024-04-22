@@ -68,23 +68,13 @@ describe('EVMVerifier', function () {
     const evmVerifier = await loadFixture(deployFixture);
     const blockHeaders:Array<Header> = await loadHeaders(201600, 211600);
 
-    const result = await evmVerifier.verifyWithRetargeting(
+    expect(evmVerifier.verifyWithRetargeting(
       201600,
       '0x' + reverseEndianness(blockHeaders[0].hash), // parent block hash
       '0x' + reverseEndianness(blockHeaders[0].hash), // start period hash
       '0x057e080000000000000000000000000000000000000000000000',
       '0x' + blockHeaders[0].header + blockHeaders[2015].header + blockHeaders.slice(1, 2000).map((h:Header) => h.header).join('')
-    );
-    const blockHashes = result[0];
-    const nextTarget = result[1];
-
-    expect(nextTarget).to.be.equal('0');
-
-    for (let i = 0; i < blockHashes.length; i++) {
-      expect(blockHashes[i].slice(2)).to.be.equal(
-        reverseEndianness(blockHeaders[1 + i].hash)
-      );
-    }
+    )).to.be.revertedWithCustomError(evmVerifier, 'InvalidHeadersInput()');
   });
 
 });

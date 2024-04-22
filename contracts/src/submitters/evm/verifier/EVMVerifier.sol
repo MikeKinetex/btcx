@@ -46,22 +46,18 @@ contract EVMVerifier is IBlockVerifier {
 
         uint256 nHeaders = hsz - 2;
         uint256 shift = (2016 - ((ancestorBlockHeight + 1) % 2016)) % 2016;
-        if (shift < nHeaders && nHeaders - shift > 2016) revert InvalidHeadersInput();
+        if (shift >= nHeaders || nHeaders - shift > 2016) revert InvalidHeadersInput();
 
         bytes32[] memory blockHashes = new bytes32[](nHeaders);
 
         if (shift > 0) {
-            uint256 n = shift < nHeaders ? shift : nHeaders;
-
-            for (uint256 i = 0; i < n; i++) {
+            for (uint256 i = 0; i < shift; i++) {
                 blockHashes[i] = _verifyHeader(
                     headers.get(i + 2),
                     i == 0 ? ancestorBlockHash : blockHashes[i - 1],
                     currentTarget
                 );
             }
-
-            if (shift >= nHeaders) return (blockHashes, 0);
         }
 
         bytes32 endPeriodBlockHash = shift > 0 ? blockHashes[shift - 1] : ancestorBlockHash;
@@ -70,6 +66,7 @@ contract EVMVerifier is IBlockVerifier {
         if (headers.get(1).hash() != endPeriodBlockHash) revert InvalidEndPeriodBlockHash();
 
         uint256 nextTarget = _adjustTarget(currentTarget, headers.get(0).timestamp(), headers.get(1).timestamp());
+        uint256 refinedNextTarget = _nBitsToTarget(headers.get(shift + 2).nBits()) & nextTarget;
 
         for (uint256 i = shift; i < nHeaders; i++) {
             blockHashes[i] = _verifyHeader(
@@ -79,7 +76,7 @@ contract EVMVerifier is IBlockVerifier {
             );
         }
 
-        return (blockHashes, _nBitsToTarget(headers.get(shift + 2).nBits()) & nextTarget);
+        return (blockHashes, refinedNextTarget);
     }
 
     function _verifyHeader(
