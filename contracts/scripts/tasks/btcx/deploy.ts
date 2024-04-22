@@ -8,7 +8,7 @@ type Args = {
   genesisBlockHash: string;
   genesisBlockUtreexo: string;
   genesisBlockTarget: string,
-  submitters: string[],
+  submitters: string,
   dry: boolean;
   nonce?: string;
 };
@@ -31,7 +31,7 @@ export const task = async (
           args.genesisBlockHash,
           args.genesisBlockUtreexo,
           args.genesisBlockTarget,
-          args.submitters
+          args.submitters.split(',')
         ],
         env,
       });

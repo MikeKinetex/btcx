@@ -39,7 +39,11 @@ task('contract-call-encode', 'Encodes contract function call data')
 // BTCX
 
 task('deploy-btcx', 'Deploys BTCX')
-  .addParam('publisher')
+  .addParam('genesisBlockHeight')
+  .addParam('genesisBlockHash')
+  .addParam('genesisBlockUtreexo')
+  .addParam('genesisBlockTarget')
+  .addParam('submitters')
   .addFlag('dry', 'Perform a dry run (estimate only)')
   .addOptionalParam('nonce', 'Nonce override')
   .setAction(async (args, env) => {
@@ -58,6 +62,17 @@ task('deploy-succinct-submitter', 'Deploys SuccinctSubmitter')
   .addOptionalParam('nonce', 'Nonce override')
   .setAction(async (args, env) => {
     const { task } = await import('./submitters/succinct/deploy');
+    await task(args, env);
+  });
+
+  task('request-succinct-submitter', 'Request update headers from SuccinctSubmitter')
+  .addParam('target')
+  .addParam('parentHash')
+  .addParam('nHeaders')
+  .addFlag('dry', 'Perform a dry run (estimate only)')
+  .addOptionalParam('nonce', 'Nonce override')
+  .setAction(async (args, env) => {
+    const { task } = await import('./submitters/succinct/request');
     await task(args, env);
   });
 
