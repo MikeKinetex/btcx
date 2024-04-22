@@ -116,7 +116,7 @@ mod tests {
     fn test_verify_template<const UPDATE_HEADERS_COUNT: usize>(
         prev_header_hash: H256,
         threshold: U256,
-    ) {
+    ) -> Vec<H256> {
         env::set_var("RUST_LOG", "debug");
         env_logger::try_init().unwrap_or_default();
 
@@ -139,10 +139,14 @@ mod tests {
 
         circuit.verify(&proof, &input, &output);
 
+        let mut hashes = Vec::new();
         for i in 0..UPDATE_HEADERS_COUNT {
             let hash = output.evm_read::<BlockHashVariable>();
             log::debug!("header hash {}: {}", i, hash);
+            hashes.push(hash);
         }
+
+        return hashes;
     }
 
     #[test]
@@ -153,7 +157,9 @@ mod tests {
             "26959535291011309493156476344723991336010898738574164086137773096960",
         )
         .unwrap();
-        test_verify_template::<UPDATE_HEADERS_COUNT>(header, threshold);
+        let mut hashes = test_verify_template::<UPDATE_HEADERS_COUNT>(header, threshold);
+        assert_eq!(hashes.len(), UPDATE_HEADERS_COUNT);
+        assert_eq!(hashes.pop().unwrap(), bytes32!("e915d9a478e3adf3186c07c61a22228b10fd87df343c92782ecc052c00000000"));
     }
 
     #[test]
@@ -163,6 +169,8 @@ mod tests {
         let threshold =
             U256::from_dec_str("9412783771427520201810837309176674245361798887059324066070528")
                 .unwrap();
-        test_verify_template::<UPDATE_HEADERS_COUNT>(header, threshold);
+        let mut hashes = test_verify_template::<UPDATE_HEADERS_COUNT>(header, threshold);
+        assert_eq!(hashes.len(), UPDATE_HEADERS_COUNT);
+        assert_eq!(hashes.pop().unwrap(), bytes32!("2a051182bc468e29d8fc925550ebac17ccec5bca3eaa107f5d04000000000000"));
     }
 }
