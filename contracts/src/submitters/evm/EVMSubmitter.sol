@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IEVMSubmitter} from "./interfaces/IEVMSubmitter.sol";
 import {ILightClient} from "../../interfaces/ILightClient.sol";
 import {IBlockVerifier} from "./interfaces/IBlockVerifier.sol";
 
-contract EVMSubmitter {
+contract EVMSubmitter is IEVMSubmitter {
     ILightClient private immutable LIGHT_CLIENT;
     IBlockVerifier private immutable BLOCK_VERIFIER;
 
