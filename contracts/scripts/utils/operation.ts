@@ -17,6 +17,7 @@ const EIP1559_INCOMPATIBLE_CHAINS = new Set<string>([]);
 export type Transaction = {
   data?: string; // ('run'-like mode only)
   to?: string; // No value => deploy contract ('run'-like mode only)
+  value?: string; // ('run'-like mode only)
   result?: unknown; // ('read' mode only)
 }
 
@@ -88,6 +89,7 @@ export const operation = async (op: Operation): Promise<void> => {
       from: deployer.address,
       to: transaction.to,
       data: transaction.data,
+      value: transaction.value,
       type: shouldUseLegacyType() ? 0 : 2,
     };
     transactionRequest = await deployer.populateTransaction(tx);

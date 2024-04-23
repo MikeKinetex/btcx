@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-interface ISuccinctGateway {
+import {IFunctionRegistry} from "./IFunctionRegistry.sol";
+
+interface ISuccinctGateway is IFunctionRegistry {
     function requestCallback(
         bytes32 functionId,
         bytes memory input,

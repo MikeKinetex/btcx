@@ -1,18 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {ISuccinctSubmitter} from "./interfaces/ISuccinctSubmitter.sol";
 import {ILightClient} from "../../interfaces/ILightClient.sol";
 import {ISuccinctGateway} from "./interfaces/ISuccinctGateway.sol";
+import {IFunctionVerifier} from "./interfaces/IFunctionVerifier.sol";
 import {OutputReader} from "./lib/OutputReader.sol";
 
-contract SuccinctSubmitter {
-    error NoFunctionId(uint256 nHeaders, bool needRetarget);
-
-    struct ZKFunction {
-        bytes32 functionId;
-        uint64 nHeaders;
-    }
-
+contract SuccinctSubmitter is ISuccinctSubmitter {
     ILightClient private immutable LIGHT_CLIENT;
     ISuccinctGateway private immutable SUCCINCT_GATEWAY;
 
@@ -42,7 +37,7 @@ contract SuccinctSubmitter {
             functionId,
             input,
             address(this),
-            abi.encodeWithSelector(this.submit.selector, parentBlockHash, nHeaders),
+            abi.encodeWithSelector(bytes4(keccak256("submit(bytes32,uint64)")), parentBlockHash, nHeaders),
             10000000
         );
     }
@@ -52,6 +47,24 @@ contract SuccinctSubmitter {
 
         bytes memory output = SUCCINCT_GATEWAY.verifiedCall(functionId, input);
 
+        _submit(parentBlockHash, nHeaders, functionId, output);
+    }
+
+    function submit(bytes32 parentBlockHash, uint64 nHeaders, bytes memory output, bytes memory proof) external {
+        (bytes32 functionId, bytes memory input) = _constructZKCall(parentBlockHash, nHeaders);
+
+        bytes32 inputHash = sha256(input);
+        bytes32 outputHash = sha256(output);
+
+        address verifier = SUCCINCT_GATEWAY.verifiers(functionId);
+        if (!IFunctionVerifier(verifier).verify(inputHash, outputHash, proof)) {
+            revert InvalidProof(verifier, inputHash, outputHash, proof);
+        }
+
+        _submit(parentBlockHash, nHeaders, functionId, output);
+    }
+
+    function _submit(bytes32 parentBlockHash, uint64 nHeaders, bytes32 functionId, bytes memory output) internal {
         bytes32[] memory blockHashes = new bytes32[](nHeaders);
         for (uint256 i = 0; i < nHeaders; i++) {
             blockHashes[i] = bytes32(OutputReader.readUint256(output, i * 32));

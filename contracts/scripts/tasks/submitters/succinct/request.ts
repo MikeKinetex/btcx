@@ -35,7 +35,7 @@ export const task = async (
           args.nHeaders,
         ],
       );
-      return { data, to: args.target, value: 300000 };
+      return { data, to: args.target };
     },
     nonce: args.nonce,
   });
